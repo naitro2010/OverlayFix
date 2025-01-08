@@ -10,6 +10,7 @@ namespace plugin {
             GameEventHandler(GameEventHandler&) = delete;
             GameEventHandler& operator=(GameEventHandler&&) = delete;
             void operator=(GameEventHandler&) = delete;
+            Update3DModelOverlayFix* overlayfix = nullptr;
         public:
             [[nodiscard]] static GameEventHandler& getInstance() {
                 static GameEventHandler instance;

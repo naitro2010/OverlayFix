@@ -1,7 +1,11 @@
+#pragma warning(disable: 4100 4189)
 using namespace SKSE;
 using namespace SKSE::log;
 using namespace SKSE::stl;
-
+#include "RE/N/NiSmartPointer.h"
+#include "REL/Relocation.h"
+#include "SKSE/API.h"
+#include "SKSE/Interfaces.h"
 #include "Plugin.h"
 #include "GameEventHandler.h"
 
@@ -52,6 +56,7 @@ namespace plugin {
 }  // namespace plugin
 
 using namespace plugin;
+
 
 extern "C" DLLEXPORT bool SKSEPlugin_Load(const LoadInterface* skse) {
     initializeLogging();
