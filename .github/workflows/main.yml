@@ -29,9 +29,9 @@ jobs:
         uses: lukka/run-cmake@v10
         with:
           cmakeListsTxtPath: ${{ github.workspace }}/CMakeLists.txt
-          configurePreset: release
+          configurePreset: default
           configurePresetAdditionalArgs: "['-DCMAKE_TOOLCHAIN_FILE:STRING=C:/vcpkg/scripts/buildsystems/vcpkg.cmake']"
-          buildPreset: release
+          buildPreset: default
           buildPresetAdditionalArgs: "['--config Release']"
       - name: Move binaries
         run: |
