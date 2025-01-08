@@ -35,7 +35,7 @@ jobs:
           buildPresetAdditionalArgs: "['--config Release']"
       - name: Move binaries
         run: |
-          cd ${{github.workspace}}/build/Release
+          cd ${{github.workspace}}/build/bin/release
           mkdir artifacts
           cd artifacts
           move ../OverlayFix.dll
@@ -44,5 +44,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with: 
           name: OverlayFix-1170-DLL
-          path: build/Release/artifacts
+          path: build/bin/release/artifacts
           retention-days: 90
