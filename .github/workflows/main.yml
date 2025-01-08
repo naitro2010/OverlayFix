@@ -1,0 +1,49 @@
+name: SkyPhysicsTest
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+    inputs:
+      versionString:
+        description: 'Version String'
+        type: string
+env:
+  BUILD_TYPE: Release
+  PROJECT_NAME: OverlayFix
+  PROJECT_LONG_NAME: SKEE64 Overlay Fix for Skyrim
+jobs:
+  build-skse:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+        with: 
+          submodules: recursive
+      - uses: lukka/get-cmake@latest
+      
+      - name: vcpkg cache
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: "76d153790caf0592fce8fc4484aa6db18c7d00d4"
+      - name: Run CMake
+        uses: lukka/run-cmake@v10
+        with:
+          cmakeListsTxtPath: ${{ github.workspace }}/CMakeLists.txt
+          configurePreset: ALL
+          configurePresetAdditionalArgs: "['-DCMAKE_TOOLCHAIN_FILE:STRING=C:/vcpkg/scripts/buildsystems/vcpkg.cmake']"
+          buildPreset: ALL
+          buildPresetAdditionalArgs: "['--config Release']"
+      - name: Move binaries
+        run: |
+          cd ${{github.workspace}}/build/Release
+          mkdir artifacts
+          cd artifacts
+          move ../OverlayFix.dll
+          move ../OverlayFix.pdb
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with: 
+          name: OverlayFix-1170-DLL
+          path: build/Release/artifacts
+          retention-days: 90
