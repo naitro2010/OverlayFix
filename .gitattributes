@@ -1,0 +1,14 @@
+* text=auto
+*.c text
+*.h text
+*.cpp text
+*.hpp text
+*.cc text
+*.txt text
+*.sln text eol=crlf
+*.csproj text eol=crlf
+*.csproj.user text eol=crlf
+*.editorconfig text eol=crlf
+app.config text eol=crlf
+packages.config text eol=crlf
+*.cs text

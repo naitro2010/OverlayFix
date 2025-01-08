@@ -1,0 +1,45 @@
+#pragma once
+
+#include <SKSE/SKSE.h>
+#include <string_view>
+
+namespace Plugin {
+    using namespace std::string_view_literals;
+
+    static constexpr auto Name{ "@PROJECT_NAME@"sv };
+    static constexpr auto Author{ "@PROJECT_AUTHOR@"sv };
+    static constexpr auto Version{
+        REL::Version{@PROJECT_VERSION_MAJOR@u, @PROJECT_VERSION_MINOR@u, @PROJECT_VERSION_PATCH@u, 0}
+    };
+    static constexpr auto VersionString{ "@PROJECT_VERSION@"sv };
+}
+
+#if defined(SKSEPluginInfo)
+SKSEPluginInfo(
+    .Version = Plugin::Version,
+    .Name = Plugin::Name,
+    .Author = Plugin::Author,
+    .SupportEmail = ""sv,
+    .StructCompatibility = SKSE::StructCompatibility::Independent,
+    .RuntimeCompatibility = SKSE::VersionIndependence::AddressLibrary,
+    .MinimumSKSEVersion = REL::Version{ 0, 0, 0, 0 }
+)
+#elif defined(ENABLE_SKYRIM_AE) || defined(SKYRIM_SUPPORT_AE)
+extern "C" DLLEXPORT constinit auto SKSEPlugin_Version = []() {
+	SKSE::PluginVersionData v;
+	v.PluginVersion(Plugin::Version);
+	v.PluginName(Plugin::Name);
+	v.AuthorName(Plugin::Author);
+	v.UsesAddressLibrary();
+	v.UsesUpdatedStructs();
+	v.CompatibleVersions({ SKSE::RUNTIME_LATEST });
+	return v;
+}();
+#else
+extern "C" [[maybe_unused]] __declspec(dllexport) bool SKSEPlugin_Query(::SKSE::QueryInterface*, ::SKSE::PluginInfo* pluginInfo) {
+    pluginInfo->infoVersion = SKSE::PluginInfo::kVersion;
+    pluginInfo->name = "@PROJECT_NAME@";
+    pluginInfo->version = Plugin::Version.pack();
+    return true;                                                                                                                                                \
+}
+#endif
