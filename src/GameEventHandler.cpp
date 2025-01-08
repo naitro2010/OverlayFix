@@ -1,3 +1,4 @@
+#pragma warning(disable: 4100 4189)
 #include "GameEventHandler.h"
 #include "Hooks.h"
 
@@ -15,14 +16,6 @@ namespace plugin {
             RE::BSGeometry* geo = CurrentObject->AsGeometry();
             if (geo != nullptr) {
                 auto geodata = geo->GetGeometryRuntimeData();
-                auto type = geo->GetType();
-                
-                if (geodata.properties[0].get() != nullptr) {
-                    auto type1 = geodata.properties[0].get()->GetType();
-                }
-                if (geodata.properties[1].get() != nullptr) {
-                    auto type2 = geodata.properties[1].get()->GetType();
-                }
                 if (geodata.properties[1].get() != nullptr && geodata.properties[1].get()->GetType() == RE::NiShadeProperty::Type::kShade) {
                     auto shader_prop = (RE::BSLightingShaderProperty*)(geodata.properties[1].get());
                     if (shader_prop != nullptr) {
@@ -38,13 +31,6 @@ namespace plugin {
             RE::BSGeometry* geo = CurrentObject->AsGeometry();
             if (geo != nullptr) {
                 auto geodata = geo->GetGeometryRuntimeData();
-                auto type = geo->GetType();
-                if (geodata.properties[0].get() != nullptr) {
-                    auto type1 = geodata.properties[0].get()->GetType();
-                }
-                if (geodata.properties[1].get() != nullptr) {
-                    auto type2 = geodata.properties[1].get()->GetType();
-                }
                 if (geodata.properties[1].get() != nullptr && geodata.properties[1].get()->GetType() == RE::NiShadeProperty::Type::kShade) {
                     auto shader_prop = (RE::BSLightingShaderProperty*)(geodata.properties[1].get());
                     if (shader_prop != nullptr) {
