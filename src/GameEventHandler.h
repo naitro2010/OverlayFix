@@ -2,6 +2,7 @@
 #include "SkseMessagingListener.h"
 
 namespace plugin {
+    class Update3DModelOverlayFix;
     class GameEventHandler : public SkseMessagingListener<GameEventHandler> {
         private:
             GameEventHandler() {
