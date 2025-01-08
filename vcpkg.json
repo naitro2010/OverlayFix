@@ -10,7 +10,6 @@
       "dependencies": [
         "commonlibsse-ng",
         "spdlog",
-        "boost-algorithm"
       ]
     }
   },

@@ -19,13 +19,5 @@ include(pluginpackage)
 include("${PROJECT_SOURCE_DIR}/local.cmake" OPTIONAL)
 
 ######## dependencies
-set(Boost_NO_WARN_NEW_VERSIONS 1)
-set(Boost_USE_STATIC_LIBS ON)
-set(Boost_USE_MULTITHREADED  ON)
-find_package(Boost REQUIRED COMPONENTS)
-if(Boost_FOUND)
-    target_link_libraries(${PROJECT_NAME} PRIVATE ${Boost_LIBRARIES})
-    target_include_directories(${PROJECT_NAME} PRIVATE ${Boost_INCLUDE_DIRS})
-endif()
 
 
