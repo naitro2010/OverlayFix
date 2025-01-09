@@ -5,6 +5,9 @@
 namespace plugin {
     void WalkOverlays(RE::NiAVObject* CurrentObject, bool hide)
     {
+        if (CurrentObject == nullptr) {
+            return;
+        }
         if (RE::NiNode* node = CurrentObject->AsNode()) {
             for (auto& obj : node->GetChildren()) {
                 if (obj.get() != nullptr) {
@@ -19,8 +22,10 @@ namespace plugin {
                 if (geodata.properties[1].get() != nullptr && geodata.properties[1].get()->GetType() == RE::NiShadeProperty::Type::kShade) {
                     auto shader_prop = (RE::BSLightingShaderProperty*)(geodata.properties[1].get());
                     if (shader_prop != nullptr) {
+                        RE::BSGraphics::Renderer::GetSingleton()->Lock();
                         shader_prop->SetupGeometry(geo);
                         shader_prop->FinishSetupGeometry(geo);
+                        RE::BSGraphics::Renderer::GetSingleton()->Unlock();
                     }
                 }
                 geo = geo;
@@ -34,8 +39,10 @@ namespace plugin {
                 if (geodata.properties[1].get() != nullptr && geodata.properties[1].get()->GetType() == RE::NiShadeProperty::Type::kShade) {
                     auto shader_prop = (RE::BSLightingShaderProperty*)(geodata.properties[1].get());
                     if (shader_prop != nullptr) {
+                        RE::BSGraphics::Renderer::GetSingleton()->Lock();
                         shader_prop->SetupGeometry(geo);
                         shader_prop->FinishSetupGeometry(geo);
+                        RE::BSGraphics::Renderer::GetSingleton()->Unlock();
                     }
                 }
                 geo = geo;
