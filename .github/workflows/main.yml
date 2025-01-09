@@ -38,11 +38,13 @@ jobs:
           cd ${{github.workspace}}/build/bin/release
           mkdir artifacts
           cd artifacts
-          move ../OverlayFix.dll
-          move ../OverlayFix.pdb
+          mkdir SKSE
+          mkdir SKSE/Plugins
+          move ../OverlayFix.dll SKSE/Plugins
+          move ../OverlayFix.pdb SKSE/Plugins
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with: 
-          name: OverlayFix-1170-DLL
+          name: OverlayFix
           path: build/bin/release/artifacts
           retention-days: 90
