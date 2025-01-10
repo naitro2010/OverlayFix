@@ -22,8 +22,10 @@ namespace plugin {
                 if (geodata.properties[1].get() != nullptr && geodata.properties[1].get()->GetType() == RE::NiShadeProperty::Type::kShade) {
                     auto shader_prop = (RE::BSLightingShaderProperty*)(geodata.properties[1].get());
                     if (shader_prop != nullptr) {
+                        shader_prop->SetFlags(RE::BSShaderProperty::EShaderPropertyFlag8::kZBufferTest, false);
                         shader_prop->SetupGeometry(geo);
                         shader_prop->FinishSetupGeometry(geo);
+                        shader_prop->SetFlags(RE::BSShaderProperty::EShaderPropertyFlag8::kZBufferTest, false);
                     }
                 }
                 geo = geo;
@@ -37,8 +39,10 @@ namespace plugin {
                 if (geodata.properties[1].get() != nullptr && geodata.properties[1].get()->GetType() == RE::NiShadeProperty::Type::kShade) {
                     auto shader_prop = (RE::BSLightingShaderProperty*)(geodata.properties[1].get());
                     if (shader_prop != nullptr) {
+                        shader_prop->SetFlags(RE::BSShaderProperty::EShaderPropertyFlag8::kZBufferTest, false);
                         shader_prop->SetupGeometry(geo);
                         shader_prop->FinishSetupGeometry(geo);
+                        shader_prop->SetFlags(RE::BSShaderProperty::EShaderPropertyFlag8::kZBufferTest, false);
                     }
                 }
                 geo = geo;
