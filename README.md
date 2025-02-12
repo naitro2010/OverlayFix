@@ -1,4 +1,8 @@
-# ***Template Project for SKSE - CommonLibSSE-NG***
+# ***OverlayFix for SKSE - CommonLibSSE-NG***
+
+## Patreon Donations
+- The following page is 18+ only because Skyrim has a 17+ age restriction on Steam.
+- [Patreon Donation Page](https://www.patreon.com/posts/mod-github-repos-122104991?utm_medium=clipboard_copy&utm_source=copyLink&utm_campaign=postshare_creator&utm_content=join_link)
 
 ## ***Runtime requirements***
 
