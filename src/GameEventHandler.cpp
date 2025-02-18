@@ -78,7 +78,7 @@ namespace plugin {
 			if (skee_loaded.compare_exchange_strong(expected, 1) == true && expected == 0) {
 				logger::info("Got SKEE64 information");
 				uint8_t signature1170[] = { 0xff, 0x90, 0xf0, 0x03, 0x00, 0x00 };
-				if (memcmp(signature1170, (void*)((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0xc2950 + (uintptr_t)0x28), sizeof(signature)) == 0) {
+				if ((skee64_info.SizeOfImage >= 0xc2950+0x40) && memcmp(signature1170, (void*)((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0xc2950 + (uintptr_t)0x28), sizeof(signature1170)) == 0) {
 					uintptr_t patch0=((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x1cea8);
                     uintptr_t patch1=((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x1cebd);
                     uintptr_t patch2=((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x1cec8);
