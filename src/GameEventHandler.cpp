@@ -69,7 +69,7 @@ namespace plugin {
     void GameEventHandler::onPostLoad() {
         logger::info("onPostLoad()");
     }
-
+    static std::atomic<uint32_t> skee_loaded = 0;
     void GameEventHandler::onPostPostLoad() {
         if (HMODULE handle = GetModuleHandleA("skee64.dll")) {
 			MODULEINFO skee64_info;
