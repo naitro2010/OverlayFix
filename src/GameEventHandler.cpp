@@ -1,7 +1,12 @@
 #pragma warning(disable: 4100 4189)
 #include "GameEventHandler.h"
+#include "RE/N/NiSmartPointer.h"
+#include "REL/Relocation.h"
+#include "SKSE/API.h"
+#include "SKSE/Interfaces.h"
 #include "Hooks.h"
-
+#include <windows.h>
+#undef GetObject
 namespace plugin {
     void WalkOverlays(RE::NiAVObject* CurrentObject, bool hide)
     {
@@ -65,6 +70,28 @@ namespace plugin {
     }
 
     void GameEventHandler::onPostPostLoad() {
+        if (HMODULE handle = GetModuleHandleA("skee64.dll")) {
+			MODULEINFO skee64_info;
+			GetModuleInformation(GetCurrentProcess(), handle, &skee64_info, sizeof(skee64_info));
+			uint32_t expected = 0;
+			if (skee_loaded.compare_exchange_strong(expected, 1) == true && expected == 0) {
+				logger::info("Got SKEE64 information");
+				uint8_t signature[] = { 0xff, 0x90, 0xf0, 0x03, 0x00, 0x00 };
+				if (memcmp(signature, (void*)((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0xc2950 + (uintptr_t)0x28), sizeof(signature)) == 0) {
+					uint8_t* patch0= (uint8_t*)((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x1cea8);
+                    uint8_t* patch1= (uint8_t*)((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x1ceb8);
+                    uint8_t* patch2= (uint8_t*)((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x1cec8);
+					REL::safe_write(patch0,(uint8_t*)"\x8b\xca\x90\x90",4);
+                    REL::safe_write(patch1,(uint8_t*)"\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90",13);
+                    REL::safe_write(patch2,(uint8_t*)"\x90\x90\x90\x90\x90\x90\x90\x90",8);
+					logger::info("SKEE64 patched");
+				} else {
+					logger::error("Wrong SKEE64 version");
+				}
+			}
+		} else {
+			logger::error("Get SKEE64 last error {}", GetLastError());
+		}
         logger::info("onPostPostLoad()");
         
     }
