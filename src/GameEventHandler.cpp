@@ -80,10 +80,10 @@ namespace plugin {
 				uint8_t signature[] = { 0xff, 0x90, 0xf0, 0x03, 0x00, 0x00 };
 				if (memcmp(signature, (void*)((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0xc2950 + (uintptr_t)0x28), sizeof(signature)) == 0) {
 					uintptr_t patch0=((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x1cea8);
-                    uintptr_t patch1=((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x1ceb8);
+                    uintptr_t patch1=((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x1cebd);
                     uintptr_t patch2=((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x1cec8);
-		    REL::safe_write(patch0,(uint8_t*)"\x8b\xca\x90\x90",4);
-                    REL::safe_write(patch1,(uint8_t*)"\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90",13);
+		            REL::safe_write(patch0,(uint8_t*)"\x8b\xca\x90\x90",4);
+                    REL::safe_write(patch1,(uint8_t*)"\x90\x90\x90\x90\x90\x90\x90\x90",8);
                     REL::safe_write(patch2,(uint8_t*)"\x90\x90\x90\x90\x90\x90\x90\x90",8);
 					logger::info("SKEE64 patched");
 				} else {
