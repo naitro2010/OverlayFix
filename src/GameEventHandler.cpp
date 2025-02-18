@@ -88,7 +88,7 @@ namespace plugin {
                     REL::safe_write(patch1,(uint8_t*)"\x90\x90\x90\x90\x90\x90\x90\x90",8);
                     REL::safe_write(patch2,(uint8_t*)"\x90\x90\x90\x90\x90\x90\x90\x90",8);
                     REL::safe_write(patch3,(uint8_t*)"\x8b\xd1\x90\x90",4);
-                    REL::safe_write(patch4,(uint8_t*)"\x90\x90",4);
+                    REL::safe_write(patch4,(uint8_t*)"\x90\x90",2);
 					logger::info("SKEE64 patched");
 				}
                 else if ((skee64_info.SizeOfImage >= 0x16b478+7) && memcmp("BODYTRI",(void*)((uintptr_t)skee64_info.lpBaseOfDll+(uintptr_t)0x16b478),7)) {
@@ -101,7 +101,7 @@ namespace plugin {
                     REL::safe_write(patch1,(uint8_t*)"\x90\x90\x90\x90\x90\x90\x90\x90",8);
                     REL::safe_write(patch2,(uint8_t*)"\x90\x90\x90\x90\x90\x90\x90\x90",8);
                     REL::safe_write(patch3,(uint8_t*)"\x8b\xd1\x90\x90",4);
-                    REL::safe_write(patch4,(uint8_t*)"\x90\x90",4);
+                    REL::safe_write(patch4,(uint8_t*)"\x90\x90",2);
                     logger::info("SKEE64 0416 patched");
                 }
                 else if ((skee64_info.SizeOfImage >= 0x17ec68+7) && memcmp("BODYTRI",(void*)((uintptr_t)skee64_info.lpBaseOfDll+(uintptr_t)0x17ec68),7)) {
@@ -114,7 +114,7 @@ namespace plugin {
                     REL::safe_write(patch1,(uint8_t*)"\x90\x90\x90\x90\x90\x90\x90\x90",8);
                     REL::safe_write(patch2,(uint8_t*)"\x90\x90\x90\x90\x90\x90\x90\x90",8);
                     REL::safe_write(patch3,(uint8_t*)"\x8b\xd1\x90\x90",4);
-                    REL::safe_write(patch4,(uint8_t*)"\x90\x90",4);
+                    REL::safe_write(patch4,(uint8_t*)"\x90\x90",2);
                     logger::info("SKEE64 04194 patched");
                 } else {
                     logger::error("Wrong SKEE64 version");
