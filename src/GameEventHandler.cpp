@@ -91,7 +91,7 @@ namespace plugin {
                     REL::safe_write(patch4,(uint8_t*)"\x90\x90",2);
 					logger::info("SKEE64 patched");
 				}
-                else if ((skee64_info.SizeOfImage >= 0x16b478+7) && memcmp("BODYTRI",(void*)((uintptr_t)skee64_info.lpBaseOfDll+(uintptr_t)0x16b478),7)) {
+                else if ((skee64_info.SizeOfImage >= 0x16b478+7) && memcmp("BODYTRI",(void*)((uintptr_t)skee64_info.lpBaseOfDll+(uintptr_t)0x16b478),7) == 0) {
                     uintptr_t patch0=((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x18438);
                     uintptr_t patch1=((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x1844d);
                     uintptr_t patch2=((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x18458);
@@ -104,7 +104,7 @@ namespace plugin {
                     REL::safe_write(patch4,(uint8_t*)"\x90\x90",2);
                     logger::info("SKEE64 0416 patched");
                 }
-                else if ((skee64_info.SizeOfImage >= 0x17ec68+7) && memcmp("BODYTRI",(void*)((uintptr_t)skee64_info.lpBaseOfDll+(uintptr_t)0x17ec68),7)) {
+                else if ((skee64_info.SizeOfImage >= 0x17ec68+7) && memcmp("BODYTRI",(void*)((uintptr_t)skee64_info.lpBaseOfDll+(uintptr_t)0x17ec68),7) == 0) {
                     uintptr_t patch0=((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0xbfd8);
                     uintptr_t patch1=((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0xbfed);
                     uintptr_t patch2=((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0xbff8);
