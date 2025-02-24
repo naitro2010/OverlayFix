@@ -151,10 +151,10 @@ namespace plugin {
 				
 			}
 		} 
-        else if (HMODULE handle = GetModuleHandleA("skeevr.dll")) 
+        else if (HMODULE handlevr = GetModuleHandleA("skeevr.dll")) 
         {
             MODULEINFO skee64_info;
-            GetModuleInformation(GetCurrentProcess(), handle, &skee64_info, sizeof(skee64_info));
+            GetModuleInformation(GetCurrentProcess(), handlevr, &skee64_info, sizeof(skee64_info));
             uint32_t expected = 0;
             if (skee_loaded.compare_exchange_strong(expected, 1) == true && expected == 0) {
                 logger::info("Got SKEEVR information");
