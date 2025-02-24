@@ -71,11 +71,13 @@ namespace plugin {
     }
     static std::atomic<uint32_t> skee_loaded = 0;
     void GameEventHandler::onPostPostLoad() {
-        if (HMODULE handle = GetModuleHandleA("skee64.dll")) {
+        if (HMODULE handle = GetModuleHandleA("skee64.dll")) 
+        {
 			MODULEINFO skee64_info;
 			GetModuleInformation(GetCurrentProcess(), handle, &skee64_info, sizeof(skee64_info));
 			uint32_t expected = 0;
-			if (skee_loaded.compare_exchange_strong(expected, 1) == true && expected == 0) {
+			if (skee_loaded.compare_exchange_strong(expected, 1) == true && expected == 0) 
+            {
 				logger::info("Got SKEE64 information");
 				uint8_t signature1170[] = { 0xff, 0x90, 0xf0, 0x03, 0x00, 0x00 };
 				if ((skee64_info.SizeOfImage >= 0xc2950+0x40) && memcmp(signature1170, (void*)((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0xc2950 + (uintptr_t)0x28), sizeof(signature1170)) == 0) {
@@ -130,14 +132,50 @@ namespace plugin {
                     REL::safe_write(patch3,(uint8_t*)"\x8b\xd1\x90\x90",4);
                     REL::safe_write(patch4,(uint8_t*)"\x90\x90",2);
                     logger::info("SKEE64 U1179 GOG patched");
+                }
+                else if ((skee64_info.SizeOfImage >= 0x16bce8+7) && memcmp("BODYTRI",(void*)((uintptr_t)skee64_info.lpBaseOfDll+(uintptr_t)0x16bce8),7) == 0) {
+                    uintptr_t patch0=((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x18d18);
+                    uintptr_t patch1=((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x18d2d);
+                    uintptr_t patch2=((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x18d38);
+                    uintptr_t patch3=((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x67a8);
+                    uintptr_t patch4=((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x67ba);
+                    REL::safe_write(patch0,(uint8_t*)"\x8b\xca\x90\x90",4);
+                    REL::safe_write(patch1,(uint8_t*)"\x90\x90\x90\x90\x90\x90\x90\x90",8);
+                    REL::safe_write(patch2,(uint8_t*)"\x90\x90\x90\x90\x90\x90\x90\x90",8);
+                    REL::safe_write(patch3,(uint8_t*)"\x8b\xd1\x90\x90",4);
+                    REL::safe_write(patch4,(uint8_t*)"\x90\x90",2);
+                    logger::info("SKEE64 VR patched");
                 } else {
                     logger::error("Wrong SKEE64 version");
                 }
 				
 			}
-		} else {
-			logger::error("Get SKEE64 last error {}", GetLastError());
-		}
+		} 
+        else if (HMODULE handle = GetModuleHandleA("skeevr.dll")) 
+        {
+            MODULEINFO skee64_info;
+            GetModuleInformation(GetCurrentProcess(), handle, &skee64_info, sizeof(skee64_info));
+            uint32_t expected = 0;
+            if (skee_loaded.compare_exchange_strong(expected, 1) == true && expected == 0) {
+                logger::info("Got SKEEVR information");
+                if ((skee64_info.SizeOfImage >= 0x16bce8+7) && memcmp("BODYTRI",(void*)((uintptr_t)skee64_info.lpBaseOfDll+(uintptr_t)0x16bce8),7) == 0) {
+                    uintptr_t patch0=((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x18d18);
+                    uintptr_t patch1=((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x18d2d);
+                    uintptr_t patch2=((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x18d38);
+                    uintptr_t patch3=((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x67a8);
+                    uintptr_t patch4=((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x67ba);
+                    REL::safe_write(patch0,(uint8_t*)"\x8b\xca\x90\x90",4);
+                    REL::safe_write(patch1,(uint8_t*)"\x90\x90\x90\x90\x90\x90\x90\x90",8);
+                    REL::safe_write(patch2,(uint8_t*)"\x90\x90\x90\x90\x90\x90\x90\x90",8);
+                    REL::safe_write(patch3,(uint8_t*)"\x8b\xd1\x90\x90",4);
+                    REL::safe_write(patch4,(uint8_t*)"\x90\x90",2);
+                    logger::info("SKEE64 VR patched");
+                } else {
+                    logger::error("Wrong SKEE64 VR version");
+                }
+            }
+            
+        }
         logger::info("onPostPostLoad()");
         
     }
