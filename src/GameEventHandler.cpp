@@ -116,6 +116,20 @@ namespace plugin {
                     REL::safe_write(patch3,(uint8_t*)"\x8b\xd1\x90\x90",4);
                     REL::safe_write(patch4,(uint8_t*)"\x90\x90",2);
                     logger::info("SKEE64 04194 patched");
+                }
+                else if ((skee64_info.SizeOfImage >= 0x178b18+7) && memcmp("BODYTRI",(void*)((uintptr_t)skee64_info.lpBaseOfDll+(uintptr_t)0x178b18),7) == 0) {
+                    // unofficial 1179 GOG patch version
+                    uintptr_t patch0=((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x25548);
+                    uintptr_t patch1=((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x2555d);
+                    uintptr_t patch2=((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x25568);
+                    uintptr_t patch3=((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0xe6f8);
+                    uintptr_t patch4=((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0xe70a);
+                    REL::safe_write(patch0,(uint8_t*)"\x8b\xca\x90\x90",4);
+                    REL::safe_write(patch1,(uint8_t*)"\x90\x90\x90\x90\x90\x90\x90\x90",8);
+                    REL::safe_write(patch2,(uint8_t*)"\x90\x90\x90\x90\x90\x90\x90\x90",8);
+                    REL::safe_write(patch3,(uint8_t*)"\x8b\xd1\x90\x90",4);
+                    REL::safe_write(patch4,(uint8_t*)"\x90\x90",2);
+                    logger::info("SKEE64 U1179 GOG patched");
                 } else {
                     logger::error("Wrong SKEE64 version");
                 }
