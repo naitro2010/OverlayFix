@@ -207,6 +207,7 @@ namespace plugin {
                     Code c0((uint64_t)&GetFullNameHooked);
                     const uint8_t* hook0=c0.getCode();
                     REL::safe_write(patch0,hook0,c0.getSize());
+                    logger::info("SAM patched");
                 }
             }
         }
