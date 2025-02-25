@@ -80,9 +80,9 @@ namespace plugin {
     }
     const char*  GetFullNameHooked(RE::TESForm* form) {
         if (form != nullptr) {
-            if (form->GetFullName() != nullptr) {
-                return form->GetFullName();
-            } else if (form->GetFormEditorID() != nullptr) {
+            if (form->GetName() != nullptr && form->GetName()[0] != 0x0) {
+                return form->GetName();
+            } else if (form->GetFormEditorID() != nullptr && form->GetFormEditorID()[0] != 0x0) {
                 return form->GetFormEditorID();
             }
         }
@@ -205,7 +205,7 @@ namespace plugin {
                 if ((samrim_info.SizeOfImage >= 0x1d2ac8+10) && memcmp("No dyeable",(void*)((uintptr_t)samrim_info.lpBaseOfDll+(uintptr_t)0x1d2ac8),10) == 0) {
                     uintptr_t patch0=((uintptr_t)samrim_info.lpBaseOfDll + (uintptr_t)0x12a320);
                     Code c0((uint64_t)&GetFullNameHooked);
-                    uint8_t* hook0=c0.getCode();
+                    const uint8_t* hook0=c0.getCode();
                     REL::safe_write(patch0,hook0,c0.getSize());
                 }
             }
