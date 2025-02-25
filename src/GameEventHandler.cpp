@@ -78,12 +78,20 @@ namespace plugin {
     void GameEventHandler::onPostLoad() {
         logger::info("onPostLoad()");
     }
+    std::recursive_mutex g_name_mutex;
+    std::map<RE::FormID, std::string> ExtraNames;
     const char*  GetFullNameHooked(RE::TESForm* form) {
+        std::lock_guard<std::recursive_mutex> lock(g_name_mutex);
         if (form != nullptr) {
             if (form->GetName() != nullptr && form->GetName()[0] != 0x0) {
                 return form->GetName();
-            } else if (form->GetFormEditorID() != nullptr && form->GetFormEditorID()[0] != 0x0) {
-                return form->GetFormEditorID();
+            } else {
+                if (ExtraNames.contains(form->formID)) {
+                    return ExtraNames[form->formID].c_str();
+                } else {
+                    ExtraNames.insert(std::pair(form->formID,std::format("{:08X}", (uint32_t)form->formID)));
+                    return ExtraNames[form->formID].c_str();
+                }
             }
         }
         return "";
