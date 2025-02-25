@@ -13,7 +13,7 @@ struct Code : Xbyak::CodeGenerator {
     Code(uint64_t offset)
     {
         mov(rax, offset);
-        jmp(qword[rax], T_FAR);
+        jmp(rax);
     }
 };
 #undef GetObject
