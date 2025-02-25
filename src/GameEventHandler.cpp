@@ -7,6 +7,15 @@
 #include "Hooks.h"
 #include <windows.h>
 #include <psapi.h>
+#include <xbyak/xbyak.h>
+
+struct Code : Xbyak::CodeGenerator {
+    Code(uint64_t offset)
+    {
+        mov(eax, offset);
+        jmp(qword[rax], T_FAR);
+    }
+};
 #undef GetObject
 namespace plugin {
     void WalkOverlays(RE::NiAVObject* CurrentObject, bool hide)
@@ -69,7 +78,18 @@ namespace plugin {
     void GameEventHandler::onPostLoad() {
         logger::info("onPostLoad()");
     }
+    const char*  GetFullNameHooked(RE::TESForm* form) {
+        if (form != nullptr) {
+            if (form->GetFullName() != nullptr) {
+                return form->GetFullName();
+            } else if (form->GetFormEditorID() != nullptr) {
+                return form->GetFormEditorID();
+            }
+        }
+        return "";
+    }
     static std::atomic<uint32_t> skee_loaded = 0;
+    static std::atomic<uint32_t> samrim_loaded = 0;
     void GameEventHandler::onPostPostLoad() {
         if (HMODULE handle = GetModuleHandleA("skee64.dll")) 
         {
@@ -175,6 +195,20 @@ namespace plugin {
                 }
             }
             
+        }
+        if (HMODULE handlesam = GetModuleHandleA("samrim.dll")) 
+        {
+            MODULEINFO samrim_info;
+            GetModuleInformation(GetCurrentProcess(), handlesam, &samrim_info, sizeof(samrim_info));
+            uint32_t expected = 0;
+            if (samrim_loaded.compare_exchange_strong(expected, 1) == true && expected == 0) {
+                if ((samrim_info.SizeOfImage >= 0x1d2ac8+10) && memcmp("No dyeable",(void*)((uintptr_t)samrim_info.lpBaseOfDll+(uintptr_t)0x1d2ac8),10) == 0) {
+                    uintptr_t patch0=((uintptr_t)samrim_info.lpBaseOfDll + (uintptr_t)0x12a320);
+                    Code c0((uint64_t)&GetFullNameHooked);
+                    uint8_t* hook0=c0.getCode();
+                    REL::safe_write(patch0,hook0,c0.getSize());
+                }
+            }
         }
         logger::info("onPostPostLoad()");
         
