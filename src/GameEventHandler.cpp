@@ -204,6 +204,7 @@ namespace plugin {
             }
             
         }
+#ifdef SAMRIM_NAME_PATCH
         if (HMODULE handlesam = GetModuleHandleA("samrim.dll")) 
         {
             MODULEINFO samrim_info;
@@ -219,6 +220,7 @@ namespace plugin {
                 }
             }
         }
+#endif
         logger::info("onPostPostLoad()");
         
     }
