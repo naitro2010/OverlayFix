@@ -16,6 +16,17 @@ struct Code : Xbyak::CodeGenerator {
         jmp(rax);
     }
 };
+struct SKEENullFix : Xbyak::CodeGenerator {
+    SKEENullFix(uint64_t offset)
+    {
+        cmp(r8,0x0);
+        jz("L1");
+        mov(rax, offset);
+        jmp(rax);
+        L("L1");
+        ret();
+    }
+};
 #undef GetObject
 namespace plugin {
     void WalkOverlays(RE::NiAVObject* CurrentObject, bool hide)
@@ -96,6 +107,7 @@ namespace plugin {
         }
         return "";
     }
+    static SKEENullFix * nullSkeletonFix;
     static std::atomic<uint32_t> skee_loaded = 0;
     static std::atomic<uint32_t> samrim_loaded = 0;
     void GameEventHandler::onPostPostLoad() {
@@ -119,6 +131,9 @@ namespace plugin {
                     REL::safe_write(patch2,(uint8_t*)"\x90\x90\x90\x90\x90\x90\x90\x90",8);
                     REL::safe_write(patch3,(uint8_t*)"\x8b\xd1\x90\x90",4);
                     REL::safe_write(patch4,(uint8_t*)"\x90\x90",2);
+                    nullSkeletonFix = new SKEENullFix((uint64_t)((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0xd5d20));
+                    const uint8_t* nullSkeletonCode=&nullSkeletonFix->getCode();
+                    REL::safe_write(((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x1e21d8),(uint64_t)&nullSkeletonCode,sizeof(uint64_t));
 					logger::info("SKEE64 patched");
 				}
                 else if ((skee64_info.SizeOfImage >= 0x16b478+7) && memcmp("BODYTRI",(void*)((uintptr_t)skee64_info.lpBaseOfDll+(uintptr_t)0x16b478),7) == 0) {
