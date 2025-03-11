@@ -29,7 +29,7 @@ struct SKEENullFix : Xbyak::CodeGenerator {
         pop(r8);
         jmp(rax);
         L("L1");
-        pop(r8)
+        pop(r8);
         ret();
     }
 };
