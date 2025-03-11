@@ -18,12 +18,18 @@ struct Code : Xbyak::CodeGenerator {
 };
 struct SKEENullFix : Xbyak::CodeGenerator {
     SKEENullFix(uint64_t offset)
-    {
+    {   
+        push(r8);
+        cmp (r8,0x0);
+        jz("L1");
+        mov (r8, qword [r8]);
         cmp(r8,0x0);
         jz("L1");
         mov(rax, offset);
+        pop(r8);
         jmp(rax);
         L("L1");
+        pop(r8)
         ret();
     }
 };
