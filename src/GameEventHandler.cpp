@@ -8,7 +8,7 @@
 #include <windows.h>
 #include <psapi.h>
 #include <xbyak/xbyak.h>
-
+static bool do_reverse=false;
 struct Code : Xbyak::CodeGenerator {
     Code(uint64_t offset)
     {
@@ -35,7 +35,8 @@ struct SKEENullFix : Xbyak::CodeGenerator {
 };
 #undef GetObject
 namespace plugin {
-    void WalkOverlays(RE::NiAVObject* CurrentObject, bool hide)
+    void WalkOverlays(RE::NiAVObject* CurrentObject, bool hide,
+                      std::function<void(RE::NiPointer<RE::NiNode>, RE::NiPointer<RE::NiAVObject>,uint32_t)> &sort_callback)
     {
         if (CurrentObject == nullptr) {
             return;
@@ -43,11 +44,23 @@ namespace plugin {
         if (RE::NiNode* node = CurrentObject->AsNode()) {
             for (auto& obj : node->GetChildren()) {
                 if (obj.get() != nullptr) {
-                    WalkOverlays(obj.get(), hide);
+                    WalkOverlays(obj.get(), hide,sort_callback);
                 }
             }
         }
+
         if (CurrentObject->name.contains("[Ovl")) {
+            unsigned long index = 256; 
+            size_t offset = std::string(CurrentObject->name.c_str()).find_last_of("Ovl", CurrentObject->name.size()) + 1;
+            if (offset < CurrentObject->name.size() && ((CurrentObject->name.size() - offset) - 1) > 0) {
+                std::string overlay_index_str =
+                    std::string(CurrentObject->name.c_str()).substr(offset, ((CurrentObject->name.size() - offset) - 1));
+                const char* index_cstr = overlay_index_str.c_str();
+                index=strtoul(index_cstr, NULL, 10);
+            }
+            if (do_reverse==true) {
+                sort_callback(RE::NiPointer(CurrentObject->parent), RE::NiPointer(CurrentObject), (uint32_t)index);
+            }
             RE::BSGeometry* geo = CurrentObject->AsGeometry();
             if (geo != nullptr) {
                 auto geodata = geo->GetGeometryRuntimeData();
@@ -63,6 +76,17 @@ namespace plugin {
             return;
         }
         if (CurrentObject->name.contains("[SOvl")) {
+            unsigned long index = 256;
+            size_t offset = std::string(CurrentObject->name.c_str()).find_last_of("Ovl", CurrentObject->name.size()) + 1;
+            if (offset < CurrentObject->name.size() && ((CurrentObject->name.size() - offset) - 1) > 0) {
+                std::string overlay_index_str =
+                    std::string(CurrentObject->name.c_str()).substr(offset, ((CurrentObject->name.size() - offset) - 1));
+                const char* index_cstr = overlay_index_str.c_str();
+                index = strtoul(index_cstr, NULL, 10);
+            }
+            if (do_reverse==true) {
+                sort_callback(RE::NiPointer(CurrentObject->parent), RE::NiPointer(CurrentObject), (uint32_t)index);
+            }
             RE::BSGeometry* geo = CurrentObject->AsGeometry();
             if (geo != nullptr) {
                 auto geodata = geo->GetGeometryRuntimeData();
@@ -83,7 +107,57 @@ namespace plugin {
         RE::BSEventNotifyControl ProcessEvent(const SKSE::NiNodeUpdateEvent* a_event, RE::BSTEventSource<SKSE::NiNodeUpdateEvent>* a_eventSource)
         {
             if (a_event && a_event->reference) {
-                WalkOverlays(a_event->reference->GetCurrent3D(), false);
+                std::map <RE::NiAVObject*,uint32_t> object_to_overlay_index_map;
+                std::map <RE::NiNode*, std::map<uint32_t, RE::NiAVObject*>> reverse_map;
+                auto reverse_map_ptr=&reverse_map;
+                auto oto_map_ptr = &object_to_overlay_index_map;
+                auto callback = [=](RE::NiPointer<RE::NiNode> parent, RE::NiPointer<RE::NiAVObject> obj, uint32_t index) {
+                    if (!reverse_map_ptr->contains(parent.get())) {
+                        std::map<uint32_t, RE::NiAVObject*> obj_map;
+                        reverse_map_ptr->insert_or_assign(parent.get(), obj_map);
+                    }
+                    if (parent.get() && obj.get()) {
+                        auto& m = reverse_map_ptr->at(parent.get());
+                        m.insert_or_assign(obj->parentIndex, obj.get());
+                        oto_map_ptr->insert_or_assign(obj.get(), index);
+                    }
+                };
+                std::function<void(RE::NiPointer<RE::NiNode>, RE::NiPointer<RE::NiAVObject>, uint32_t)> callback_fn = callback;
+                WalkOverlays(a_event->reference->GetCurrent3D(), false,
+                    callback_fn);
+                for (auto& node_pair : reverse_map) {
+                    std::map<RE::NiAVObject*, uint32_t> original_indices;
+                    std::map<RE::NiAVObject*, uint32_t> new_indices;
+                    for (auto& obj_pair : node_pair.second) {
+                        original_indices.insert_or_assign(obj_pair.second, obj_pair.second->parentIndex);
+                    }
+                    std::vector<RE::NiAVObject*> keys;
+                    for (auto p: original_indices) {
+                        keys.push_back(p.first);
+                    }
+                    int new_index = 0;
+                    if (keys.size() >= 2) {
+                        if (original_indices[keys[0]] < original_indices[keys[1]]) {
+                            for (int i = (int)original_indices.size() - 1; i >= 0; i -= 1) {
+                                new_indices.insert_or_assign(keys[new_index], original_indices[keys[i]]);
+                                new_index += 1;
+                            }
+                        
+                            std::map<uint32_t, RE::NiPointer<RE::NiAVObject>> child_objects;
+                            for (auto index_pair: original_indices) 
+                            {
+                                RE::NiPointer<RE::NiAVObject> temporary;
+
+                                node_pair.first->DetachChildAt(index_pair.second, temporary);
+                                child_objects.insert_or_assign(new_indices[index_pair.first], temporary);
+                            }
+                            for (auto& obj_pair: child_objects) 
+                            {
+                                node_pair.first->InsertChildAt(obj_pair.first, obj_pair.second.get());
+                            }
+                        }
+                    }
+                }
             }
             return RE::BSEventNotifyControl::kContinue;
         }
@@ -140,6 +214,7 @@ namespace plugin {
                     nullSkeletonFix = new SKEENullFix((uint64_t)((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0xd5d20));
                     const uint8_t* nullSkeletonCode=nullSkeletonFix->getCode();
                     REL::safe_write(((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x1e21d8),(uint8_t*)(&nullSkeletonCode),sizeof(uint64_t));
+                    do_reverse=true;
 					logger::info("SKEE64 patched");
 				}
                 else if ((skee64_info.SizeOfImage >= 0x16b478+7) && memcmp("BODYTRI",(void*)((uintptr_t)skee64_info.lpBaseOfDll+(uintptr_t)0x16b478),7) == 0) {
@@ -180,6 +255,7 @@ namespace plugin {
                     REL::safe_write(patch2,(uint8_t*)"\x90\x90\x90\x90\x90\x90\x90\x90",8);
                     REL::safe_write(patch3,(uint8_t*)"\x8b\xd1\x90\x90",4);
                     REL::safe_write(patch4,(uint8_t*)"\x90\x90",2);
+                    do_reverse=true;
                     logger::info("SKEE64 U1179 GOG patched");
                 }
                 else if ((skee64_info.SizeOfImage >= 0x16bce8+7) && memcmp("BODYTRI",(void*)((uintptr_t)skee64_info.lpBaseOfDll+(uintptr_t)0x16bce8),7) == 0) {
