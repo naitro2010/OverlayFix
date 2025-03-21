@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
   "name": "skse-clibng-template",
-  "version-string": "0.0.1",
+  "version-string": "0.0.5",
   "description": "SKSE CommonLibSSE-NG Template",
   "homepage": "https://github.com/epinter/skse-clibng-template",
   "features": {
@@ -9,7 +9,8 @@
       "description": "SKSE plugin",
       "dependencies": [
         "commonlibsse-ng",
-        "spdlog"
+        "spdlog",
+        "xbyak"
       ]
     }
   },

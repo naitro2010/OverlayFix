@@ -7,6 +7,32 @@
 #include "Hooks.h"
 #include <windows.h>
 #include <psapi.h>
+#include <xbyak/xbyak.h>
+
+struct Code : Xbyak::CodeGenerator {
+    Code(uint64_t offset)
+    {
+        mov(rax, offset);
+        jmp(rax);
+    }
+};
+struct SKEENullFix : Xbyak::CodeGenerator {
+    SKEENullFix(uint64_t offset)
+    {   
+        push(r8);
+        cmp (r8,0x0);
+        jz("L1");
+        mov (r8, qword [r8]);
+        cmp(r8,0x0);
+        jz("L1");
+        mov(rax, offset);
+        pop(r8);
+        jmp(rax);
+        L("L1");
+        pop(r8);
+        ret();
+    }
+};
 #undef GetObject
 namespace plugin {
     void WalkOverlays(RE::NiAVObject* CurrentObject, bool hide)
@@ -69,7 +95,27 @@ namespace plugin {
     void GameEventHandler::onPostLoad() {
         logger::info("onPostLoad()");
     }
+    std::recursive_mutex g_name_mutex;
+    std::map<RE::FormID, std::string> ExtraNames;
+    const char*  GetFullNameHooked(RE::TESForm* form) {
+        std::lock_guard<std::recursive_mutex> lock(g_name_mutex);
+        if (form != nullptr) {
+            if (form->GetName() != nullptr && form->GetName()[0] != 0x0) {
+                return form->GetName();
+            } else {
+                if (ExtraNames.contains(form->formID)) {
+                    return ExtraNames[form->formID].c_str();
+                } else {
+                    ExtraNames.insert(std::pair(form->formID,std::format("{:08X}", (uint32_t)form->formID)));
+                    return ExtraNames[form->formID].c_str();
+                }
+            }
+        }
+        return "";
+    }
+    static SKEENullFix * nullSkeletonFix;
     static std::atomic<uint32_t> skee_loaded = 0;
+    static std::atomic<uint32_t> samrim_loaded = 0;
     void GameEventHandler::onPostPostLoad() {
         if (HMODULE handle = GetModuleHandleA("skee64.dll")) 
         {
@@ -91,6 +137,9 @@ namespace plugin {
                     REL::safe_write(patch2,(uint8_t*)"\x90\x90\x90\x90\x90\x90\x90\x90",8);
                     REL::safe_write(patch3,(uint8_t*)"\x8b\xd1\x90\x90",4);
                     REL::safe_write(patch4,(uint8_t*)"\x90\x90",2);
+                    nullSkeletonFix = new SKEENullFix((uint64_t)((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0xd5d20));
+                    const uint8_t* nullSkeletonCode=nullSkeletonFix->getCode();
+                    REL::safe_write(((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x1e21d8),(uint8_t*)(&nullSkeletonCode),sizeof(uint64_t));
 					logger::info("SKEE64 patched");
 				}
                 else if ((skee64_info.SizeOfImage >= 0x16b478+7) && memcmp("BODYTRI",(void*)((uintptr_t)skee64_info.lpBaseOfDll+(uintptr_t)0x16b478),7) == 0) {
@@ -176,6 +225,23 @@ namespace plugin {
             }
             
         }
+#ifdef SAMRIM_NAME_PATCH
+        if (HMODULE handlesam = GetModuleHandleA("samrim.dll")) 
+        {
+            MODULEINFO samrim_info;
+            GetModuleInformation(GetCurrentProcess(), handlesam, &samrim_info, sizeof(samrim_info));
+            uint32_t expected = 0;
+            if (samrim_loaded.compare_exchange_strong(expected, 1) == true && expected == 0) {
+                if ((samrim_info.SizeOfImage >= 0x1d2ac8+10) && memcmp("No dyeable",(void*)((uintptr_t)samrim_info.lpBaseOfDll+(uintptr_t)0x1d2ac8),10) == 0) {
+                    uintptr_t patch0=((uintptr_t)samrim_info.lpBaseOfDll + (uintptr_t)0x12a320);
+                    Code c0((uint64_t)&GetFullNameHooked);
+                    const uint8_t* hook0=c0.getCode();
+                    REL::safe_write(patch0,hook0,c0.getSize());
+                    logger::info("SAM patched");
+                }
+            }
+        }
+#endif
         logger::info("onPostPostLoad()");
         
     }
