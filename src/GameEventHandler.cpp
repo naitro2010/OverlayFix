@@ -8,6 +8,7 @@
 #include <windows.h>
 #include <psapi.h>
 #include <xbyak/xbyak.h>
+#include "ini.h"
 static bool do_reverse=false;
 struct Code : Xbyak::CodeGenerator {
     Code(uint64_t offset)
@@ -191,6 +192,18 @@ namespace plugin {
     static std::atomic<uint32_t> skee_loaded = 0;
     static std::atomic<uint32_t> samrim_loaded = 0;
     void GameEventHandler::onPostPostLoad() {
+        mINI::INIFile file("Data\\skse\\plugins\\OverlayFix.ini");
+        mINI::INIStructure ini;
+        if (file.read(ini)==false) {
+            ini["OverlayFix"]["reverse"]="default";
+            file.generate(ini);
+        } else {
+            if (ini["OverlayFix"]["reverse"]=="true") {
+                do_reverse=true;
+            } else if (ini["OverlayFix"]["reverse"]=="false") {
+                do_reverse=false;
+            }
+        }
         if (HMODULE handle = GetModuleHandleA("skee64.dll")) 
         {
 			MODULEINFO skee64_info;
@@ -214,7 +227,9 @@ namespace plugin {
                     nullSkeletonFix = new SKEENullFix((uint64_t)((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0xd5d20));
                     const uint8_t* nullSkeletonCode=nullSkeletonFix->getCode();
                     REL::safe_write(((uintptr_t)skee64_info.lpBaseOfDll + (uintptr_t)0x1e21d8),(uint8_t*)(&nullSkeletonCode),sizeof(uint64_t));
-                    do_reverse=true;
+                    if (ini["OverlayFix"]["reverse"]=="default") {
+                        do_reverse=true;
+                    }
 					logger::info("SKEE64 patched");
 				}
                 else if ((skee64_info.SizeOfImage >= 0x16b478+7) && memcmp("BODYTRI",(void*)((uintptr_t)skee64_info.lpBaseOfDll+(uintptr_t)0x16b478),7) == 0) {
@@ -255,7 +270,9 @@ namespace plugin {
                     REL::safe_write(patch2,(uint8_t*)"\x90\x90\x90\x90\x90\x90\x90\x90",8);
                     REL::safe_write(patch3,(uint8_t*)"\x8b\xd1\x90\x90",4);
                     REL::safe_write(patch4,(uint8_t*)"\x90\x90",2);
-                    do_reverse=true;
+                    if (ini["OverlayFix"]["reverse"]=="default") {
+                        do_reverse=true;
+                    }
                     logger::info("SKEE64 U1179 GOG patched");
                 }
                 else if ((skee64_info.SizeOfImage >= 0x16bce8+7) && memcmp("BODYTRI",(void*)((uintptr_t)skee64_info.lpBaseOfDll+(uintptr_t)0x16bce8),7) == 0) {
