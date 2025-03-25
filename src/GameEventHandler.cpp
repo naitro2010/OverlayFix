@@ -10,6 +10,7 @@
 #include <xbyak/xbyak.h>
 #include "ini.h"
 #define CRASH_FIX_ALPHA
+#define DISMEMBER_CRASH_FIX_ALPHA
 static bool do_reverse = false;
 struct Code : Xbyak::CodeGenerator {
         Code(uint64_t offset) {
@@ -17,8 +18,61 @@ struct Code : Xbyak::CodeGenerator {
             jmp(rax);
         }
 };
+struct Dismember1170InstallOverlayHook : Xbyak::CodeGenerator {
+        Dismember1170InstallOverlayHook(uint64_t offset) {
+            mov(rax, offset);
+            jmp(rax);
+        }
+};
+struct Dismember1170InstallOverlayReturn : Xbyak::CodeGenerator {
+        Dismember1170InstallOverlayReturn(uint64_t continue_offset, uint64_t getExtraDismemberedLimbsOffset) {
+            push(rcx);
+            push(rdx);
+            push(r8);
+            push(r9);
+            push(r10);
+            push(r11);
+            mov(rcx, r9);
+            cmp(byte[rcx + 0x1a], 0x3e);
+            jne("CONTINUECODE");
+            add(rcx, 0x70);
+            mov(rax, getExtraDismemberedLimbsOffset);
+            sub(rsp, 0x38);
+            call(rax);
+            add(rsp, 0x38);
+            cmp(rax, 0x0);
+            je("CONTINUECODE");
+            movzx(rax, word[rax + 0x10]);
+            cmp(rax, 0x0);
+            je("CONTINUECODE");
+            pop(r11);
+            pop(r10);
+            pop(r9);
+            pop(r8);
+            pop(rdx);
+            pop(rcx);
+            ret();
+            L("CONTINUECODE");
+            pop(r11);
+            pop(r10);
+            pop(r9);
+            pop(r8);
+            pop(rdx);
+            pop(rcx);
+            push(rbp);
+            push(rbx);
+            push(rsi);
+            push(rdi);
+            push(r12);
+            push(r13);
+            push(r14);
+            push(r15);
+            mov(rax, continue_offset);
+            jmp(rax);
+        }
+};
 struct DeepCopyCheck : Xbyak::CodeGenerator {
-        DeepCopyCheck(uint64_t ok_offset, uint64_t bs_skin_vtable,uint64_t skin_vtable) {
+        DeepCopyCheck(uint64_t ok_offset, uint64_t bs_skin_vtable, uint64_t skin_vtable) {
             push(rbx);
             cmp(rcx, 0x0);
             je("BADSKIN");
@@ -40,7 +94,6 @@ struct DeepCopyCheck : Xbyak::CodeGenerator {
             pop(rbx);
             mov(rax, ok_offset);
             jmp(rax);
-            
         }
 };
 struct DeepCopyHook : Xbyak::CodeGenerator {
@@ -55,7 +108,7 @@ struct DeepCopyOK : Xbyak::CodeGenerator {
             push(rsi);
             push(rdi);
             sub(rsp, 0x650);
-            mov(qword[rsp + 0x20], (uint64_t) - 0x2);
+            mov(qword[rsp + 0x20], (uint64_t) -0x2);
             mov(rax, offset);
             jmp(rax);
         }
@@ -229,6 +282,8 @@ namespace plugin {
     static DeepCopyHook* deepCopyHook;
     static DeepCopyCheck* deepCopyCheck;
     static DeepCopyOK* deepCopyOk;
+    static Dismember1170InstallOverlayHook* Dismember1170Hook;
+    static Dismember1170InstallOverlayReturn* Dismember1170Return;
     static std::atomic<uint32_t> skee_loaded = 0;
     static std::atomic<uint32_t> samrim_loaded = 0;
     void GameEventHandler::onPostPostLoad() {
@@ -272,16 +327,25 @@ namespace plugin {
                         do_reverse = true;
                     }
 #ifdef CRASH_FIX_ALPHA
-                    auto skin_vtable=REL::Offset(0x19b0718).address();
+                    auto skin_vtable = REL::Offset(0x19b0718).address();
                     auto deepcopy_addr = (uintptr_t) REL::Offset(0xd18080).address();
                     auto deepcopy_okret_addr = (uintptr_t) REL::Offset(0xd18094).address();
-                    deepCopyOk=new DeepCopyOK ((uint64_t) deepcopy_okret_addr);
-                    const uint64_t deepcopy_ok = (uint64_t)deepCopyOk->getCode();
-                    deepCopyCheck=new DeepCopyCheck ((uint64_t) deepcopy_ok,skin_vtable,skin_vtable);
-                    deepCopyHook=new DeepCopyHook ((uint64_t) deepCopyCheck->getCode());
+                    deepCopyOk = new DeepCopyOK((uint64_t) deepcopy_okret_addr);
+                    const uint64_t deepcopy_ok = (uint64_t) deepCopyOk->getCode();
+                    deepCopyCheck = new DeepCopyCheck((uint64_t) deepcopy_ok, skin_vtable, skin_vtable);
+                    deepCopyHook = new DeepCopyHook((uint64_t) deepCopyCheck->getCode());
                     const uint8_t* deepcopy_hook_code = deepCopyHook->getCode();
                     REL::safe_write(deepcopy_addr, deepcopy_hook_code, deepCopyHook->getSize());
-#endif                                   
+#endif
+#ifdef DISMEMBER_CRASH_FIX_ALPHA
+                    Dismember1170Return = new Dismember1170InstallOverlayReturn(
+                        (uint64_t) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0xd04dd), (uint64_t)REL::Offset(0x16bde0).address());
+                    uint64_t Dismember1170ReturnAddr=(uint64_t)Dismember1170Return->getCode();
+                    Dismember1170Hook = new Dismember1170InstallOverlayHook(Dismember1170ReturnAddr);
+                    const uint8_t* dismember_hook_code = Dismember1170Hook->getCode();
+                    REL::safe_write(((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0xd04d0), dismember_hook_code,
+                                    Dismember1170Hook->getSize());
+#endif
                     logger::info("SKEE64 patched");
                 } else if ((skee64_info.SizeOfImage >= 0x16b478 + 7) &&
                            memcmp("BODYTRI", (void*) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x16b478), 7) == 0) {
