@@ -10,7 +10,8 @@
       "dependencies": [
         "commonlibsse-ng",
         "spdlog",
-        "xbyak"
+        "xbyak",
+        "detours"
       ]
     }
   },
