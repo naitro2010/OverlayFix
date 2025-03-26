@@ -239,22 +239,25 @@ namespace plugin {
                                RE::NiAVObject* param_6) = (void (*)(void* inter, uint32_t param_2, uint32_t param_3,
                                                                     RE::TESObjectREFR* param_4, RE::NiNode* param_5,
                                                                     RE::NiAVObject* param_6)) 0x0;
+    static void (*InstallOverlayHook)(void* inter, const char * param_2, const char * param_3, RE::TESObjectREFR* param_4, RE::BSGeometry* geo, RE::NiNode* param_5,RE::BGSTextureSet* param_6) = (void (*)(void* inter, const char * param_2, const char * param_3, RE::TESObjectREFR* param_4, RE::BSGeometry* geo, RE::NiNode* param_5,RE::BGSTextureSet* param_6)) 0x0;
     static void OverlayHook_fn(void* inter, uint32_t param_2, uint32_t param_3, RE::TESObjectREFR* param_4, RE::NiNode* param_5,
         RE::NiAVObject* param_6)
     {
-        if (param_4 && param_4->Is(RE::FormType::ActorCharacter)) {
+        /* if (param_4 && param_4->Is(RE::FormType::ActorCharacter)) {
             RE::Actor* actor = param_4->As<RE::Actor>();
             if (actor) {
                 if (actor->extraList.GetByType(RE::ExtraDataType::kDismemberedLimbs)) {
                     return;
                 }
             }
-        }
+        }*/
+
         OverlayHook(inter, param_2, param_3, param_4, param_5, param_6);
     }
     static void OverlayHook2_fn(void* inter, uint32_t param_2, uint32_t param_3, RE::TESObjectREFR* param_4, RE::NiNode* param_5,
         RE::NiAVObject* param_6)
     {
+        /*
         if (param_4 && param_4->Is(RE::FormType::ActorCharacter)) {
             RE::Actor* actor = param_4->As<RE::Actor>();
             if (actor) {
@@ -262,8 +265,28 @@ namespace plugin {
                     return;
                 }
             }
-        }
+        }*/
         OverlayHook2(inter, param_2, param_3, param_4, param_5, param_6);
+    }
+    static void InstallOverlayHook_fn(void* inter, const char* param_2, const char* param_3, RE::TESObjectREFR* param_4,
+        RE::BSGeometry* geo, RE::NiNode* param_5, RE::BGSTextureSet* param_6) {
+        RE::BSFixedString geometry_node_name(param_2);
+        RE::BSGeometry* found_geo = nullptr;
+        if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(geometry_node_name)) {
+            found_geo = found_geometry->AsGeometry();
+        }
+        if (!geo || geo->_refCount==0 || (geo->GetType() != found_geo->GetType())) {
+            logger::info("Found incorrect geometry type for overlay, fixing");
+            while (found_geo) {
+                found_geo->GetGeometryRuntimeData().skinInstance = nullptr;
+                found_geo->parent->DetachChild(found_geo);
+                if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(geometry_node_name)) {
+                    found_geo = found_geometry->AsGeometry();
+                }
+            }
+            logger::info("Found incorrect geometry type for overlays, removal complete");
+        }
+        InstallOverlayHook(inter, param_2, param_3, param_4, geo, param_5, param_6);
     }
     static std::atomic<uint32_t> skee_loaded = 0;
     static std::atomic<uint32_t> samrim_loaded = 0;
@@ -327,6 +350,14 @@ namespace plugin {
                         OverlayHook2 =
                             (void (*)(void* inter, uint32_t param_2, uint32_t param_3, RE::TESObjectREFR* param_4, RE::NiNode* param_5,
                                       RE::NiAVObject* param_6))((uint64_t) skee64_info.lpBaseOfDll + 0xd23f0);
+                        InstallOverlayHook =
+                            (void (*)(void* inter, const char* param_2, const char* param_3, RE::TESObjectREFR* param_4,
+                                                       RE::BSGeometry* geo, RE::NiNode* param_5,
+                                                       RE::BGSTextureSet* param_6))((uint64_t) skee64_info.lpBaseOfDll + 0xd04d0);
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) InstallOverlayHook, &InstallOverlayHook_fn);
+                        DetourTransactionCommit();
                         DetourTransactionBegin();
                         DetourUpdateThread(GetCurrentThread());
                         DetourAttach(
