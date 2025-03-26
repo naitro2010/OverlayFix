@@ -12,6 +12,7 @@
 #include "detours/detours.h"
 #define CRASH_FIX_ALPHA
 #define DISMEMBER_CRASH_FIX_ALPHA
+#define STEAMDECK_CRASH_FIX
 static bool do_reverse = false;
 struct Code : Xbyak::CodeGenerator {
         Code(uint64_t offset) {
@@ -231,18 +232,52 @@ namespace plugin {
     static DeepCopyHook* deepCopyHook;
     static DeepCopyCheck* deepCopyCheck;
     static DeepCopyOK* deepCopyOk;
+    static void (*SteamdeckVirtualKeyboardCallback)(uint64_t param_1, char* param_2) = (void(*)(uint64_t param_1,char* param_2))0x0;
+    static void (*SteamdeckVirtualKeyboardCallback2)(uint64_t param_1, char* param_2) = (void (*)(uint64_t param_1, char* param_2)) 0x0;
     static void (*OverlayHook)(void* inter, uint32_t param_2, uint32_t param_3, RE::TESObjectREFR* param_4, RE::NiNode* param_5,
                                RE::NiAVObject* param_6) = (void (*)(void* inter, uint32_t param_2, uint32_t param_3,
                                                                     RE::TESObjectREFR* param_4, RE::NiNode* param_5,
                                                                     RE::NiAVObject* param_6)) 0x0;
     static void (*OverlayHook2)(void* inter, uint32_t param_2, uint32_t param_3, RE::TESObjectREFR* param_4, RE::NiNode* param_5,
-                               RE::NiAVObject* param_6) = (void (*)(void* inter, uint32_t param_2, uint32_t param_3,
-                                                                    RE::TESObjectREFR* param_4, RE::NiNode* param_5,
-                                                                    RE::NiAVObject* param_6)) 0x0;
-    static void (*InstallOverlayHook)(void* inter, const char * param_2, const char * param_3, RE::TESObjectREFR* param_4, RE::BSGeometry* geo, RE::NiNode* param_5,RE::BGSTextureSet* param_6) = (void (*)(void* inter, const char * param_2, const char * param_3, RE::TESObjectREFR* param_4, RE::BSGeometry* geo, RE::NiNode* param_5,RE::BGSTextureSet* param_6)) 0x0;
-    static void OverlayHook_fn(void* inter, uint32_t param_2, uint32_t param_3, RE::TESObjectREFR* param_4, RE::NiNode* param_5,
-        RE::NiAVObject* param_6)
+                                RE::NiAVObject* param_6) = (void (*)(void* inter, uint32_t param_2, uint32_t param_3,
+                                                                     RE::TESObjectREFR* param_4, RE::NiNode* param_5,
+                                                                     RE::NiAVObject* param_6)) 0x0;
+    static void (*InstallOverlayHook)(void* inter, const char* param_2, const char* param_3, RE::TESObjectREFR* param_4,
+                                      RE::BSGeometry* geo, RE::NiNode* param_5,
+                                      RE::BGSTextureSet* param_6) = (void (*)(void* inter, const char* param_2, const char* param_3,
+                                                                              RE::TESObjectREFR* param_4, RE::BSGeometry* geo,
+                                                                              RE::NiNode* param_5, RE::BGSTextureSet* param_6)) 0x0;
+    static void FakeCallbackDone(void*, const char*) 
     {
+        
+    }
+    static void FakeCallbackCancel(void*, const char*) {
+        
+    }
+    static void VirtualKeyboard_fn(uint64_t param_1, char* param_2) {
+        if (param_1 != 0x0) {
+            if ((*(uint64_t*) (param_1 + 0x1d0)) == 0x0) {
+                (*(uint64_t*) (param_1 + 0x1d0)) = (uint64_t) FakeCallbackDone;
+            }
+            if ((*(uint64_t*) (param_1 + 0x1d8)) == 0x0) {
+                (*(uint64_t*) (param_1 + 0x1d8)) = (uint64_t) FakeCallbackCancel;
+            }
+        }
+        SteamdeckVirtualKeyboardCallback(param_1, param_2);
+    }
+    static void VirtualKeyboard2_fn(uint64_t param_1, char* param_2) {
+        if (param_1 != 0x0) {
+            if ((*(uint64_t*) (param_1 + 0x1d0)) == 0x0) {
+                (*(uint64_t*) (param_1 + 0x1d0)) = (uint64_t) FakeCallbackDone;
+            }
+            if ((*(uint64_t*) (param_1 + 0x1d8)) == 0x0) {
+                (*(uint64_t*) (param_1 + 0x1d8)) = (uint64_t) FakeCallbackCancel;
+            }
+        }
+        SteamdeckVirtualKeyboardCallback2(param_1, param_2);
+    }
+    static void OverlayHook_fn(void* inter, uint32_t param_2, uint32_t param_3, RE::TESObjectREFR* param_4, RE::NiNode* param_5,
+                               RE::NiAVObject* param_6) {
         /* if (param_4 && param_4->Is(RE::FormType::ActorCharacter)) {
             RE::Actor* actor = param_4->As<RE::Actor>();
             if (actor) {
@@ -255,8 +290,7 @@ namespace plugin {
         OverlayHook(inter, param_2, param_3, param_4, param_5, param_6);
     }
     static void OverlayHook2_fn(void* inter, uint32_t param_2, uint32_t param_3, RE::TESObjectREFR* param_4, RE::NiNode* param_5,
-        RE::NiAVObject* param_6)
-    {
+                                RE::NiAVObject* param_6) {
         /*
         if (param_4 && param_4->Is(RE::FormType::ActorCharacter)) {
             RE::Actor* actor = param_4->As<RE::Actor>();
@@ -269,7 +303,7 @@ namespace plugin {
         OverlayHook2(inter, param_2, param_3, param_4, param_5, param_6);
     }
     static void InstallOverlayHook_fn(void* inter, const char* param_2, const char* param_3, RE::TESObjectREFR* param_4,
-        RE::BSGeometry* geo, RE::NiNode* param_5, RE::BGSTextureSet* param_6) {
+                                      RE::BSGeometry* geo, RE::NiNode* param_5, RE::BGSTextureSet* param_6) {
         RE::BSFixedString geometry_node_name(param_2);
         RE::BSGeometry* found_geo = nullptr;
         if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(geometry_node_name)) {
@@ -288,7 +322,6 @@ namespace plugin {
                     } else {
                         found_geo = nullptr;
                     }
-                    
                 }
                 logger::info("Found incorrect geometry type for overlays, removal complete");
             }
@@ -350,15 +383,13 @@ namespace plugin {
 #endif
 #ifdef DISMEMBER_CRASH_FIX_ALPHA
                     if (OverlayHook == 0x0) {
-                        
-                        OverlayHook=(void (*)(void* inter, uint32_t param_2, uint32_t param_3,
-                                                                    RE::TESObjectREFR* param_4, RE::NiNode* param_5,
-                                                                    RE::NiAVObject* param_6))((uint64_t)skee64_info.lpBaseOfDll + 0xd22a0);
+                        OverlayHook =
+                            (void (*)(void* inter, uint32_t param_2, uint32_t param_3, RE::TESObjectREFR* param_4, RE::NiNode* param_5,
+                                      RE::NiAVObject* param_6))((uint64_t) skee64_info.lpBaseOfDll + 0xd22a0);
                         OverlayHook2 =
                             (void (*)(void* inter, uint32_t param_2, uint32_t param_3, RE::TESObjectREFR* param_4, RE::NiNode* param_5,
                                       RE::NiAVObject* param_6))((uint64_t) skee64_info.lpBaseOfDll + 0xd23f0);
-                        InstallOverlayHook =
-                            (void (*)(void* inter, const char* param_2, const char* param_3, RE::TESObjectREFR* param_4,
+                        InstallOverlayHook = (void (*)(void* inter, const char* param_2, const char* param_3, RE::TESObjectREFR* param_4,
                                                        RE::BSGeometry* geo, RE::NiNode* param_5,
                                                        RE::BGSTextureSet* param_6))((uint64_t) skee64_info.lpBaseOfDll + 0xd04d0);
                         DetourTransactionBegin();
@@ -367,16 +398,14 @@ namespace plugin {
                         DetourTransactionCommit();
                         DetourTransactionBegin();
                         DetourUpdateThread(GetCurrentThread());
-                        DetourAttach(
-                            &(PVOID&) OverlayHook,
-                            &OverlayHook_fn);
+                        DetourAttach(&(PVOID&) OverlayHook, &OverlayHook_fn);
                         DetourTransactionCommit();
                         DetourTransactionBegin();
                         DetourUpdateThread(GetCurrentThread());
                         DetourAttach(&(PVOID&) OverlayHook2, &OverlayHook2_fn);
                         DetourTransactionCommit();
                     }
-                    
+
 #endif
                     logger::info("SKEE64 patched");
                 } else if ((skee64_info.SizeOfImage >= 0x16b478 + 7) &&
@@ -478,6 +507,23 @@ namespace plugin {
                     logger::info("SAM patched");
                 }
             }
+        }
+#endif
+#ifdef STEAMDECK_CRASH_FIX
+        auto version = REL::Module::get().version();
+        if (version == REL::Version(1, 6, 1170, 0)) {
+            logger::info("Patching Steamdeck keyboard crash");
+            SteamdeckVirtualKeyboardCallback = (void (*)(uint64_t param_1, char* param_2)) REL::Offset(0x1531c60).address();
+            SteamdeckVirtualKeyboardCallback2 = (void (*)(uint64_t param_1, char* param_2)) REL::Offset(0x1531cd0).address();
+            DetourTransactionBegin();
+            DetourUpdateThread(GetCurrentThread());
+            DetourAttach(&(PVOID&) SteamdeckVirtualKeyboardCallback, &VirtualKeyboard_fn);
+            DetourTransactionCommit();
+            DetourTransactionBegin();
+            DetourUpdateThread(GetCurrentThread());
+            DetourAttach(&(PVOID&) SteamdeckVirtualKeyboardCallback2, &VirtualKeyboard2_fn);
+            DetourTransactionCommit();
+            logger::info("completed patching Steamdeck keyboard crash");
         }
 #endif
         logger::info("onPostPostLoad()");
