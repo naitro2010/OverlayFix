@@ -9,7 +9,9 @@
 #include <psapi.h>
 #include <xbyak/xbyak.h>
 #include "ini.h"
+#include "detours/detours.h"
 #define CRASH_FIX_ALPHA
+#define DISMEMBER_CRASH_FIX_ALPHA
 static bool do_reverse = false;
 struct Code : Xbyak::CodeGenerator {
         Code(uint64_t offset) {
@@ -17,8 +19,9 @@ struct Code : Xbyak::CodeGenerator {
             jmp(rax);
         }
 };
+
 struct DeepCopyCheck : Xbyak::CodeGenerator {
-        DeepCopyCheck(uint64_t ok_offset, uint64_t bs_skin_vtable,uint64_t skin_vtable) {
+        DeepCopyCheck(uint64_t ok_offset, uint64_t bs_skin_vtable, uint64_t skin_vtable) {
             push(rbx);
             cmp(rcx, 0x0);
             je("BADSKIN");
@@ -40,7 +43,6 @@ struct DeepCopyCheck : Xbyak::CodeGenerator {
             pop(rbx);
             mov(rax, ok_offset);
             jmp(rax);
-            
         }
 };
 struct DeepCopyHook : Xbyak::CodeGenerator {
@@ -55,7 +57,7 @@ struct DeepCopyOK : Xbyak::CodeGenerator {
             push(rsi);
             push(rdi);
             sub(rsp, 0x650);
-            mov(qword[rsp + 0x20], (uint64_t) - 0x2);
+            mov(qword[rsp + 0x20], (uint64_t) -0x2);
             mov(rax, offset);
             jmp(rax);
         }
@@ -229,6 +231,70 @@ namespace plugin {
     static DeepCopyHook* deepCopyHook;
     static DeepCopyCheck* deepCopyCheck;
     static DeepCopyOK* deepCopyOk;
+    static void (*OverlayHook)(void* inter, uint32_t param_2, uint32_t param_3, RE::TESObjectREFR* param_4, RE::NiNode* param_5,
+                               RE::NiAVObject* param_6) = (void (*)(void* inter, uint32_t param_2, uint32_t param_3,
+                                                                    RE::TESObjectREFR* param_4, RE::NiNode* param_5,
+                                                                    RE::NiAVObject* param_6)) 0x0;
+    static void (*OverlayHook2)(void* inter, uint32_t param_2, uint32_t param_3, RE::TESObjectREFR* param_4, RE::NiNode* param_5,
+                               RE::NiAVObject* param_6) = (void (*)(void* inter, uint32_t param_2, uint32_t param_3,
+                                                                    RE::TESObjectREFR* param_4, RE::NiNode* param_5,
+                                                                    RE::NiAVObject* param_6)) 0x0;
+    static void (*InstallOverlayHook)(void* inter, const char * param_2, const char * param_3, RE::TESObjectREFR* param_4, RE::BSGeometry* geo, RE::NiNode* param_5,RE::BGSTextureSet* param_6) = (void (*)(void* inter, const char * param_2, const char * param_3, RE::TESObjectREFR* param_4, RE::BSGeometry* geo, RE::NiNode* param_5,RE::BGSTextureSet* param_6)) 0x0;
+    static void OverlayHook_fn(void* inter, uint32_t param_2, uint32_t param_3, RE::TESObjectREFR* param_4, RE::NiNode* param_5,
+        RE::NiAVObject* param_6)
+    {
+        /* if (param_4 && param_4->Is(RE::FormType::ActorCharacter)) {
+            RE::Actor* actor = param_4->As<RE::Actor>();
+            if (actor) {
+                if (actor->extraList.GetByType(RE::ExtraDataType::kDismemberedLimbs)) {
+                    return;
+                }
+            }
+        }*/
+
+        OverlayHook(inter, param_2, param_3, param_4, param_5, param_6);
+    }
+    static void OverlayHook2_fn(void* inter, uint32_t param_2, uint32_t param_3, RE::TESObjectREFR* param_4, RE::NiNode* param_5,
+        RE::NiAVObject* param_6)
+    {
+        /*
+        if (param_4 && param_4->Is(RE::FormType::ActorCharacter)) {
+            RE::Actor* actor = param_4->As<RE::Actor>();
+            if (actor) {
+                if (actor->extraList.GetByType(RE::ExtraDataType::kDismemberedLimbs)) {
+                    return;
+                }
+            }
+        }*/
+        OverlayHook2(inter, param_2, param_3, param_4, param_5, param_6);
+    }
+    static void InstallOverlayHook_fn(void* inter, const char* param_2, const char* param_3, RE::TESObjectREFR* param_4,
+        RE::BSGeometry* geo, RE::NiNode* param_5, RE::BGSTextureSet* param_6) {
+        RE::BSFixedString geometry_node_name(param_2);
+        RE::BSGeometry* found_geo = nullptr;
+        if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(geometry_node_name)) {
+            found_geo = found_geometry->AsGeometry();
+        }
+        if (found_geo) {
+            if (!geo || geo->_refCount == 0 || (geo->GetType() != found_geo->GetType())) {
+                logger::info("Found incorrect geometry type for overlay, fixing");
+                while (found_geo) {
+                    found_geo->GetGeometryRuntimeData().skinInstance = nullptr;
+                    if (found_geo->parent) {
+                        found_geo->parent->DetachChild(found_geo);
+                    }
+                    if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(geometry_node_name)) {
+                        found_geo = found_geometry->AsGeometry();
+                    } else {
+                        found_geo = nullptr;
+                    }
+                    
+                }
+                logger::info("Found incorrect geometry type for overlays, removal complete");
+            }
+        }
+        InstallOverlayHook(inter, param_2, param_3, param_4, geo, param_5, param_6);
+    }
     static std::atomic<uint32_t> skee_loaded = 0;
     static std::atomic<uint32_t> samrim_loaded = 0;
     void GameEventHandler::onPostPostLoad() {
@@ -272,16 +338,46 @@ namespace plugin {
                         do_reverse = true;
                     }
 #ifdef CRASH_FIX_ALPHA
-                    auto skin_vtable=REL::Offset(0x19b0718).address();
+                    auto skin_vtable = REL::Offset(0x19b0718).address();
                     auto deepcopy_addr = (uintptr_t) REL::Offset(0xd18080).address();
                     auto deepcopy_okret_addr = (uintptr_t) REL::Offset(0xd18094).address();
-                    deepCopyOk=new DeepCopyOK ((uint64_t) deepcopy_okret_addr);
-                    const uint64_t deepcopy_ok = (uint64_t)deepCopyOk->getCode();
-                    deepCopyCheck=new DeepCopyCheck ((uint64_t) deepcopy_ok,skin_vtable,skin_vtable);
-                    deepCopyHook=new DeepCopyHook ((uint64_t) deepCopyCheck->getCode());
+                    deepCopyOk = new DeepCopyOK((uint64_t) deepcopy_okret_addr);
+                    const uint64_t deepcopy_ok = (uint64_t) deepCopyOk->getCode();
+                    deepCopyCheck = new DeepCopyCheck((uint64_t) deepcopy_ok, skin_vtable, skin_vtable);
+                    deepCopyHook = new DeepCopyHook((uint64_t) deepCopyCheck->getCode());
                     const uint8_t* deepcopy_hook_code = deepCopyHook->getCode();
                     REL::safe_write(deepcopy_addr, deepcopy_hook_code, deepCopyHook->getSize());
-#endif                                   
+#endif
+#ifdef DISMEMBER_CRASH_FIX_ALPHA
+                    if (OverlayHook == 0x0) {
+                        
+                        OverlayHook=(void (*)(void* inter, uint32_t param_2, uint32_t param_3,
+                                                                    RE::TESObjectREFR* param_4, RE::NiNode* param_5,
+                                                                    RE::NiAVObject* param_6))((uint64_t)skee64_info.lpBaseOfDll + 0xd22a0);
+                        OverlayHook2 =
+                            (void (*)(void* inter, uint32_t param_2, uint32_t param_3, RE::TESObjectREFR* param_4, RE::NiNode* param_5,
+                                      RE::NiAVObject* param_6))((uint64_t) skee64_info.lpBaseOfDll + 0xd23f0);
+                        InstallOverlayHook =
+                            (void (*)(void* inter, const char* param_2, const char* param_3, RE::TESObjectREFR* param_4,
+                                                       RE::BSGeometry* geo, RE::NiNode* param_5,
+                                                       RE::BGSTextureSet* param_6))((uint64_t) skee64_info.lpBaseOfDll + 0xd04d0);
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) InstallOverlayHook, &InstallOverlayHook_fn);
+                        DetourTransactionCommit();
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(
+                            &(PVOID&) OverlayHook,
+                            &OverlayHook_fn);
+                        DetourTransactionCommit();
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) OverlayHook2, &OverlayHook2_fn);
+                        DetourTransactionCommit();
+                    }
+                    
+#endif
                     logger::info("SKEE64 patched");
                 } else if ((skee64_info.SizeOfImage >= 0x16b478 + 7) &&
                            memcmp("BODYTRI", (void*) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x16b478), 7) == 0) {

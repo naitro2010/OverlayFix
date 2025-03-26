@@ -28,6 +28,12 @@ else()
         target_include_directories(${PROJECT_NAME} PRIVATE CommonLibSSE::CommonLibSSE)
 endif()
 
+find_path(DETOURS_INCLUDE_DIRS "detours/detours.h")
+find_library(DETOURS_LIBRARY detours REQUIRED)
+
+target_include_directories(${PROJECT_NAME} PRIVATE ${DETOURS_INCLUDE_DIRS})
+target_link_libraries(${PROJECT_NAME} PRIVATE ${DETOURS_LIBRARY}) 
+
 if(MSVC)
         target_compile_options(${PROJECT_NAME} PRIVATE /Zi)
         target_link_options(${PROJECT_NAME} PRIVATE "$<$<CONFIG:RELEASE>:/DEBUG:FULL;/INCREMENTAL:NO;/OPT:REF,ICF>")
