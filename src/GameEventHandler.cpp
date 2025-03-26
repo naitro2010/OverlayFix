@@ -280,10 +280,15 @@ namespace plugin {
                 logger::info("Found incorrect geometry type for overlay, fixing");
                 while (found_geo) {
                     found_geo->GetGeometryRuntimeData().skinInstance = nullptr;
-                    found_geo->parent->DetachChild(found_geo);
+                    if (found_geo->parent) {
+                        found_geo->parent->DetachChild(found_geo);
+                    }
                     if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(geometry_node_name)) {
                         found_geo = found_geometry->AsGeometry();
+                    } else {
+                        found_geo = nullptr;
                     }
+                    
                 }
                 logger::info("Found incorrect geometry type for overlays, removal complete");
             }
