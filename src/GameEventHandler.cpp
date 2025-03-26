@@ -275,16 +275,18 @@ namespace plugin {
         if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(geometry_node_name)) {
             found_geo = found_geometry->AsGeometry();
         }
-        if (!geo || geo->_refCount==0 || (geo->GetType() != found_geo->GetType())) {
-            logger::info("Found incorrect geometry type for overlay, fixing");
-            while (found_geo) {
-                found_geo->GetGeometryRuntimeData().skinInstance = nullptr;
-                found_geo->parent->DetachChild(found_geo);
-                if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(geometry_node_name)) {
-                    found_geo = found_geometry->AsGeometry();
+        if (found_geo) {
+            if (!geo || geo->_refCount == 0 || (geo->GetType() != found_geo->GetType())) {
+                logger::info("Found incorrect geometry type for overlay, fixing");
+                while (found_geo) {
+                    found_geo->GetGeometryRuntimeData().skinInstance = nullptr;
+                    found_geo->parent->DetachChild(found_geo);
+                    if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(geometry_node_name)) {
+                        found_geo = found_geometry->AsGeometry();
+                    }
                 }
+                logger::info("Found incorrect geometry type for overlays, removal complete");
             }
-            logger::info("Found incorrect geometry type for overlays, removal complete");
         }
         InstallOverlayHook(inter, param_2, param_3, param_4, geo, param_5, param_6);
     }
