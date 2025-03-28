@@ -14,6 +14,7 @@
 #define DISMEMBER_CRASH_FIX_ALPHA
 #define STEAMDECK_CRASH_FIX
 static bool do_reverse = false;
+static bool vr_decals = true;
 struct Code : Xbyak::CodeGenerator {
         Code(uint64_t offset) {
             mov(rax, offset);
@@ -232,7 +233,7 @@ namespace plugin {
     static DeepCopyHook* deepCopyHook;
     static DeepCopyCheck* deepCopyCheck;
     static DeepCopyOK* deepCopyOk;
-    static void (*SteamdeckVirtualKeyboardCallback)(uint64_t param_1, char* param_2) = (void(*)(uint64_t param_1,char* param_2))0x0;
+    static void (*SteamdeckVirtualKeyboardCallback)(uint64_t param_1, char* param_2) = (void (*)(uint64_t param_1, char* param_2)) 0x0;
     static void (*SteamdeckVirtualKeyboardCallback2)(uint64_t param_1, char* param_2) = (void (*)(uint64_t param_1, char* param_2)) 0x0;
     static void (*OverlayHook)(void* inter, uint32_t param_2, uint32_t param_3, RE::TESObjectREFR* param_4, RE::NiNode* param_5,
                                RE::NiAVObject* param_6) = (void (*)(void* inter, uint32_t param_2, uint32_t param_3,
@@ -247,13 +248,8 @@ namespace plugin {
                                       RE::BGSTextureSet* param_6) = (void (*)(void* inter, const char* param_2, const char* param_3,
                                                                               RE::TESObjectREFR* param_4, RE::BSGeometry* geo,
                                                                               RE::NiNode* param_5, RE::BGSTextureSet* param_6)) 0x0;
-    static void FakeCallbackDone(void*, const char*) 
-    {
-        
-    }
-    static void FakeCallbackCancel(void*, const char*) {
-        
-    }
+    static void FakeCallbackDone(void*, const char*) {}
+    static void FakeCallbackCancel(void*, const char*) {}
     static void VirtualKeyboard_fn(uint64_t param_1, char* param_2) {
         if (param_1 != 0x0) {
             if ((*(uint64_t*) (param_1 + 0x1d0)) == 0x0) {
@@ -302,6 +298,48 @@ namespace plugin {
         }*/
         OverlayHook2(inter, param_2, param_3, param_4, param_5, param_6);
     }
+    static void InstallOverlayHookVR_fn(void* inter, const char* param_2, const char* param_3, RE::TESObjectREFR* param_4,
+                                      RE::BSGeometry* geo, RE::NiNode* param_5, RE::BGSTextureSet* param_6) {
+        RE::BSFixedString geometry_node_name(param_2);
+        RE::BSGeometry* found_geo = nullptr;
+        if (param_5) {
+            if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(geometry_node_name)) {
+                found_geo = found_geometry->AsGeometry();
+            }
+            if (found_geo) {
+                if (!geo || geo->_refCount == 0 || (geo->GetType() != found_geo->GetType())) {
+                    logger::info("Found incorrect geometry type for overlay, fixing");
+                    while (found_geo) {
+                        found_geo->GetGeometryRuntimeData().skinInstance = nullptr;
+                        if (found_geo->parent) {
+                            found_geo->parent->DetachChild(found_geo);
+                        }
+                        if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(geometry_node_name)) {
+                            found_geo = found_geometry->AsGeometry();
+                        } else {
+                            found_geo = nullptr;
+                        }
+                    }
+                    logger::info("Found incorrect geometry type for overlays, removal complete");
+                }
+            }
+        }
+        InstallOverlayHook(inter, param_2, param_3, param_4, geo, param_5, param_6);
+        if (param_5) {
+            if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(geometry_node_name)) {
+                found_geo = found_geometry->AsGeometry();
+                if (found_geo != nullptr && vr_decals == true) {
+                    if (found_geo->GetGeometryRuntimeData().properties[1]) {
+                        auto shader_prop = (RE::BSLightingShaderProperty*) found_geo->GetGeometryRuntimeData().properties[1].get();
+                        if (shader_prop != nullptr) {
+                            shader_prop->SetFlags(RE::BSShaderProperty::EShaderPropertyFlag8::kDecal, true);
+                        }
+
+                    }
+                }
+            }
+        }
+    }
     static void InstallOverlayHook_fn(void* inter, const char* param_2, const char* param_3, RE::TESObjectREFR* param_4,
                                       RE::BSGeometry* geo, RE::NiNode* param_5, RE::BGSTextureSet* param_6) {
         RE::BSFixedString geometry_node_name(param_2);
@@ -335,12 +373,18 @@ namespace plugin {
         mINI::INIStructure ini;
         if (file.read(ini) == false) {
             ini["OverlayFix"]["reverse"] = "default";
+            ini["OverlayFix"]["vrdecals"] = "default";
             file.generate(ini);
         } else {
             if (ini["OverlayFix"]["reverse"] == "true") {
                 do_reverse = true;
             } else if (ini["OverlayFix"]["reverse"] == "false") {
                 do_reverse = false;
+            }
+            if (ini["OverlayFix"]["vrdecals"] == "true") {
+                vr_decals = true;
+            } else if (ini["OverlayFix"]["vrdecals"] == "false") {
+                vr_decals = false;
             }
         }
         if (HMODULE handle = GetModuleHandleA("skee64.dll")) {
@@ -463,6 +507,17 @@ namespace plugin {
                     REL::safe_write(patch2, (uint8_t*) "\x90\x90\x90\x90\x90\x90\x90\x90", 8);
                     REL::safe_write(patch3, (uint8_t*) "\x8b\xd1\x90\x90", 4);
                     REL::safe_write(patch4, (uint8_t*) "\x90\x90", 2);
+#ifdef DISMEMBER_CRASH_FIX_ALPHA
+                    logger::info("SKEEVR InstallOverlay patching");
+                    InstallOverlayHook =
+                        (void (*)(void* inter, const char* param_2, const char* param_3, RE::TESObjectREFR* param_4, RE::BSGeometry* geo,
+                                  RE::NiNode* param_5, RE::BGSTextureSet* param_6))((uint64_t) skee64_info.lpBaseOfDll + 0x7c4b0);
+                    DetourTransactionBegin();
+                    DetourUpdateThread(GetCurrentThread());
+                    DetourAttach(&(PVOID&) InstallOverlayHook, &InstallOverlayHookVR_fn);
+                    DetourTransactionCommit();
+                    logger::info("SKEEVR InstallOverlay patched");
+#endif
                     logger::info("SKEE64 VR patched");
                 } else {
                     logger::error("Wrong SKEE64 version");
@@ -486,6 +541,17 @@ namespace plugin {
                     REL::safe_write(patch2, (uint8_t*) "\x90\x90\x90\x90\x90\x90\x90\x90", 8);
                     REL::safe_write(patch3, (uint8_t*) "\x8b\xd1\x90\x90", 4);
                     REL::safe_write(patch4, (uint8_t*) "\x90\x90", 2);
+#ifdef DISMEMBER_CRASH_FIX_ALPHA
+                    logger::info("SKEEVR InstallOverlay patching");
+                    InstallOverlayHook =
+                        (void (*)(void* inter, const char* param_2, const char* param_3, RE::TESObjectREFR* param_4, RE::BSGeometry* geo,
+                                  RE::NiNode* param_5, RE::BGSTextureSet* param_6))((uint64_t) skee64_info.lpBaseOfDll + 0x7c4b0);
+                    DetourTransactionBegin();
+                    DetourUpdateThread(GetCurrentThread());
+                    DetourAttach(&(PVOID&) InstallOverlayHook, &InstallOverlayHookVR_fn);
+                    DetourTransactionCommit();
+                    logger::info("SKEEVR InstallOverlay patched");
+#endif
                     logger::info("SKEE64 VR patched");
                 } else {
                     logger::error("Wrong SKEE64 VR version");
