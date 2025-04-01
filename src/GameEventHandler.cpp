@@ -206,14 +206,22 @@ namespace plugin {
     static void (*DeepCopyDetour)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
                                       uint64_t param_4) = (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
                                                                     uint64_t param_4)) 0x0;
+    static uint64_t skin_vtable = 0x0;
     static void DeepCopy_fn(uint64_t param_1, uint64_t* param_2, uint64_t param_3, uint64_t param_4) {
         if (param_1 == 0x0) {
             logger::info("Invalid DeepCopy, skipping copy");
             return;
         }
-        if (*((int32_t*) param_1 + 8) <= 0) {
-            logger::info("Invalid DeepCopy, skipping copy");
-            return;
+        if (*(uintptr_t*)param_1 != skin_vtable) {
+            logger::info("Invalid DeepCopy vtable {:08X}, checking refcount", *(uintptr_t*) param_1);
+            if (RE::NiObject* object = (RE::NiObject*) param_1) {
+                if (object->_refCount == 0) {
+                    logger::info("Invalid DeepCopy vtable {:08X}, skipping copy", *(uintptr_t*) param_1);
+                    return;
+                }
+            }
+            
+            
         }
         DeepCopyDetour(param_1, param_2, param_3, param_4);
     }
@@ -336,6 +344,7 @@ namespace plugin {
                         do_reverse = true;
                     }
 #ifdef CRASH_FIX_ALPHA
+                    skin_vtable = (uintptr_t)REL::Offset(0x19b0718).address();
                     auto deepcopy_addr = (uintptr_t) REL::Offset(0xd18080).address();
                     DeepCopyDetour =
                         (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3, uint64_t param_4)) REL::Offset(0xd18080).address();
@@ -386,6 +395,8 @@ namespace plugin {
                     auto version = REL::Module::get().version();
                     if (version == REL::Version(1, 5, 97, 0)) {
 #ifdef CRASH_FIX_ALPHA
+                        skin_vtable = (uint64_t)REL::Offset(0x176a0a0).address();
+
                         DeepCopyDetour =
                             (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3, uint64_t param_4)) REL::Offset(0xc529a0)
                                 .address();
