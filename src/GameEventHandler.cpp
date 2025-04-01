@@ -313,7 +313,7 @@ namespace plugin {
             if (!geo || geo->_refCount == 0 || (geo->GetType() != found_geo->GetType())) {
                 logger::info("Found incorrect geometry type for overlay, fixing");
                 while (found_geo) {
-                    found_geo->GetGeometryRuntimeData().skinInstance = nullptr;
+                    //found_geo->GetGeometryRuntimeData().skinInstance = nullptr;
                     if (found_geo->parent) {
                         found_geo->parent->DetachChild(found_geo);
                     }
