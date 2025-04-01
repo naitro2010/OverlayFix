@@ -21,48 +21,7 @@ struct Code : Xbyak::CodeGenerator {
         }
 };
 
-struct DeepCopyCheck : Xbyak::CodeGenerator {
-        DeepCopyCheck(uint64_t ok_offset, uint64_t bs_skin_vtable, uint64_t skin_vtable) {
-            push(rbx);
-            cmp(rcx, 0x0);
-            je("BADSKIN");
-            mov(eax, dword[rcx + 0x8]);
-            cmp(eax, 0x0);
-            jle("BADSKIN");
-            mov(rax, qword[rcx]);
-            mov(rbx, bs_skin_vtable);
-            cmp(rax, rbx);
-            je("GOODSKIN");
-            mov(rbx, skin_vtable);
-            cmp(rax, rbx);
-            je("GOODSKIN");
-            L("BADSKIN");
-            pop(rbx);
-            mov(rax, 0x0);
-            ret();
-            L("GOODSKIN");
-            pop(rbx);
-            mov(rax, ok_offset);
-            jmp(rax);
-        }
-};
-struct DeepCopyHook : Xbyak::CodeGenerator {
-        DeepCopyHook(uint64_t check_offset) {
-            mov(rax, check_offset);
-            jmp(rax);
-        }
-};
-struct DeepCopyOK : Xbyak::CodeGenerator {
-        DeepCopyOK(uint64_t offset) {
-            push(rbx);
-            push(rsi);
-            push(rdi);
-            sub(rsp, 0x650);
-            mov(qword[rsp + 0x20], (uint64_t) -0x2);
-            mov(rax, offset);
-            jmp(rax);
-        }
-};
+
 struct SKEENullFix : Xbyak::CodeGenerator {
         SKEENullFix(uint64_t offset) {
             push(r8);
@@ -229,9 +188,6 @@ namespace plugin {
         return "";
     }
     static SKEENullFix* nullSkeletonFix;
-    static DeepCopyHook* deepCopyHook;
-    static DeepCopyCheck* deepCopyCheck;
-    static DeepCopyOK* deepCopyOk;
     static void (*SteamdeckVirtualKeyboardCallback)(uint64_t param_1, char* param_2) = (void (*)(uint64_t param_1, char* param_2)) 0x0;
     static void (*SteamdeckVirtualKeyboardCallback2)(uint64_t param_1, char* param_2) = (void (*)(uint64_t param_1, char* param_2)) 0x0;
     static void (*OverlayHook)(void* inter, uint32_t param_2, uint32_t param_3, RE::TESObjectREFR* param_4, RE::NiNode* param_5,
@@ -247,20 +203,19 @@ namespace plugin {
                                       RE::BGSTextureSet* param_6) = (void (*)(void* inter, const char* param_2, const char* param_3,
                                                                               RE::TESObjectREFR* param_4, RE::BSGeometry* geo,
                                                                               RE::NiNode* param_5, RE::BGSTextureSet* param_6)) 0x0;
-    static void (*DeepCopy1597Detour)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
+    static void (*DeepCopyDetour)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
                                       uint64_t param_4) = (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
                                                                     uint64_t param_4)) 0x0;
-    static void DeepCopy1597_fn(uint64_t param_1, uint64_t* param_2, uint64_t param_3, uint64_t param_4) {
+    static void DeepCopy_fn(uint64_t param_1, uint64_t* param_2, uint64_t param_3, uint64_t param_4) {
         if (param_1 == 0x0) {
+            logger::info("Invalid DeepCopy, skipping copy");
             return;
         }
-        if (*((int32_t*)param_1+8)<=0) {
+        if (*((int32_t*) param_1 + 8) <= 0) {
+            logger::info("Invalid DeepCopy, skipping copy");
             return;
         }
-        if (*((uint64_t*)param_1) != REL::Offset(0x176a0a0).address()) {
-            return;
-        }
-        DeepCopy1597Detour(param_1, param_2, param_3, param_4);
+        DeepCopyDetour(param_1, param_2, param_3, param_4);
     }
     static void FakeCallbackDone(void*, const char*) {}
     static void FakeCallbackCancel(void*, const char*) {}
@@ -323,7 +278,7 @@ namespace plugin {
             if (!geo || geo->_refCount == 0 || (geo->GetType() != found_geo->GetType())) {
                 logger::info("Found incorrect geometry type for overlay, fixing");
                 while (found_geo) {
-                    //found_geo->GetGeometryRuntimeData().skinInstance = nullptr;
+                    found_geo->GetGeometryRuntimeData().skinInstance = nullptr;
                     if (found_geo->parent) {
                         found_geo->parent->DetachChild(found_geo);
                     }
@@ -381,15 +336,13 @@ namespace plugin {
                         do_reverse = true;
                     }
 #ifdef CRASH_FIX_ALPHA
-                    auto skin_vtable = REL::Offset(0x19b0718).address();
                     auto deepcopy_addr = (uintptr_t) REL::Offset(0xd18080).address();
-                    auto deepcopy_okret_addr = (uintptr_t) REL::Offset(0xd18094).address();
-                    deepCopyOk = new DeepCopyOK((uint64_t) deepcopy_okret_addr);
-                    const uint64_t deepcopy_ok = (uint64_t) deepCopyOk->getCode();
-                    deepCopyCheck = new DeepCopyCheck((uint64_t) deepcopy_ok, skin_vtable, skin_vtable);
-                    deepCopyHook = new DeepCopyHook((uint64_t) deepCopyCheck->getCode());
-                    const uint8_t* deepcopy_hook_code = deepCopyHook->getCode();
-                    REL::safe_write(deepcopy_addr, deepcopy_hook_code, deepCopyHook->getSize());
+                    DeepCopyDetour =
+                        (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3, uint64_t param_4)) REL::Offset(0xd18080).address();
+                    DetourTransactionBegin();
+                    DetourUpdateThread(GetCurrentThread());
+                    DetourAttach(&(PVOID&) DeepCopyDetour, &DeepCopy_fn);
+                    DetourTransactionCommit();
 #endif
 #ifdef DISMEMBER_CRASH_FIX_ALPHA
                     if (OverlayHook == 0x0) {
@@ -433,12 +386,12 @@ namespace plugin {
                     auto version = REL::Module::get().version();
                     if (version == REL::Version(1, 5, 97, 0)) {
 #ifdef CRASH_FIX_ALPHA
-                        DeepCopy1597Detour =
+                        DeepCopyDetour =
                             (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3, uint64_t param_4)) REL::Offset(0xc529a0)
                                 .address();
                         DetourTransactionBegin();
                         DetourUpdateThread(GetCurrentThread());
-                        DetourAttach(&(PVOID&) DeepCopy1597Detour, &DeepCopy1597_fn);
+                        DetourAttach(&(PVOID&) DeepCopyDetour, &DeepCopy_fn);
                         DetourTransactionCommit();
                         logger::info("SKEE64 1597 crash fix 1 applied");
 #endif
