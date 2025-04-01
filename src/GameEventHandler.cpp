@@ -232,7 +232,7 @@ namespace plugin {
     static DeepCopyHook* deepCopyHook;
     static DeepCopyCheck* deepCopyCheck;
     static DeepCopyOK* deepCopyOk;
-    static void (*SteamdeckVirtualKeyboardCallback)(uint64_t param_1, char* param_2) = (void(*)(uint64_t param_1,char* param_2))0x0;
+    static void (*SteamdeckVirtualKeyboardCallback)(uint64_t param_1, char* param_2) = (void (*)(uint64_t param_1, char* param_2)) 0x0;
     static void (*SteamdeckVirtualKeyboardCallback2)(uint64_t param_1, char* param_2) = (void (*)(uint64_t param_1, char* param_2)) 0x0;
     static void (*OverlayHook)(void* inter, uint32_t param_2, uint32_t param_3, RE::TESObjectREFR* param_4, RE::NiNode* param_5,
                                RE::NiAVObject* param_6) = (void (*)(void* inter, uint32_t param_2, uint32_t param_3,
@@ -247,13 +247,23 @@ namespace plugin {
                                       RE::BGSTextureSet* param_6) = (void (*)(void* inter, const char* param_2, const char* param_3,
                                                                               RE::TESObjectREFR* param_4, RE::BSGeometry* geo,
                                                                               RE::NiNode* param_5, RE::BGSTextureSet* param_6)) 0x0;
-    static void FakeCallbackDone(void*, const char*) 
-    {
-        
+    static void (*DeepCopy1597Detour)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
+                                      uint64_t param_4) = (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
+                                                                    uint64_t param_4)) 0x0;
+    static void DeepCopy1597_fn(uint64_t param_1, uint64_t* param_2, uint64_t param_3, uint64_t param_4) {
+        if (param_1 == 0x0) {
+            return;
+        }
+        if (*((int32_t*)param_1+8)<=0) {
+            return;
+        }
+        if (*((uint64_t*)param_1) != REL::Offset(0x176a0a0).address()) {
+            return;
+        }
+        DeepCopy1597Detour(param_1, param_2, param_3, param_4);
     }
-    static void FakeCallbackCancel(void*, const char*) {
-        
-    }
+    static void FakeCallbackDone(void*, const char*) {}
+    static void FakeCallbackCancel(void*, const char*) {}
     static void VirtualKeyboard_fn(uint64_t param_1, char* param_2) {
         if (param_1 != 0x0) {
             if ((*(uint64_t*) (param_1 + 0x1d0)) == 0x0) {
@@ -420,6 +430,29 @@ namespace plugin {
                     REL::safe_write(patch2, (uint8_t*) "\x90\x90\x90\x90\x90\x90\x90\x90", 8);
                     REL::safe_write(patch3, (uint8_t*) "\x8b\xd1\x90\x90", 4);
                     REL::safe_write(patch4, (uint8_t*) "\x90\x90", 2);
+                    auto version = REL::Module::get().version();
+                    if (version == REL::Version(1, 5, 97, 0)) {
+#ifdef CRASH_FIX_ALPHA
+                        DeepCopy1597Detour =
+                            (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3, uint64_t param_4)) REL::Offset(0xc529a0)
+                                .address();
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) DeepCopy1597Detour, &DeepCopy1597_fn);
+                        DetourTransactionCommit();
+                        logger::info("SKEE64 1597 crash fix 1 applied");
+#endif
+#ifdef DISMEMBER_CRASH_FIX_ALPHA
+                        InstallOverlayHook = (void (*)(void* inter, const char* param_2, const char* param_3, RE::TESObjectREFR* param_4,
+                                                       RE::BSGeometry* geo, RE::NiNode* param_5,
+                                                       RE::BGSTextureSet* param_6))((uint64_t) skee64_info.lpBaseOfDll + 0x7f5e0);
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) InstallOverlayHook, &InstallOverlayHook_fn);
+                        DetourTransactionCommit();
+                        logger::info("SKEE64 1597 crash fix 2 applied");
+#endif
+                    }
                     logger::info("SKEE64 0416 patched");
                 } else if ((skee64_info.SizeOfImage >= 0x17ec68 + 7) &&
                            memcmp("BODYTRI", (void*) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x17ec68), 7) == 0) {
