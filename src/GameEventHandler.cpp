@@ -213,7 +213,7 @@ namespace plugin {
             return;
         }
         if (*(uintptr_t*)param_1 != skin_vtable) {
-            logger::info("Invalid DeepCopy vtable {:08X}, checking refcount", *(uintptr_t*) param_1);
+            logger::info("DeepCopy vtable {:08X}, checking refcount", *(uintptr_t*) param_1);
             if (RE::NiObject* object = (RE::NiObject*) param_1) {
                 if (object->_refCount == 0) {
                     logger::info("Invalid DeepCopy vtable {:08X}, skipping copy", *(uintptr_t*) param_1);
