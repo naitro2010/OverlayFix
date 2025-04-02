@@ -27,11 +27,7 @@ jobs:
       - name: vcpkg cache
         uses: lukka/run-vcpkg@v10
         with:
-          vcpkgGitCommitId: "76d153790caf0592fce8fc4484aa6db18c7d00d4"
-      - name: Clear Buildtree
-        run: |
-          rm -r ./vcpkg/buildtrees          
-          rm -r C:/vcpkg/buildtrees 
+          vcpkgGitCommitId: "a4275b7eee79fb24ec2e135481ef5fce8b41c339"        
       - name: Run CMake
         uses: lukka/run-cmake@v10
         with:
