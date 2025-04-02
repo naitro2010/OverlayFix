@@ -22,7 +22,7 @@ jobs:
       - name: Get CMake
         uses: lukka/get-cmake@v3.27.0
         with:
-          cmakeVersion: "~3.27.0"
+          cmakeVersion: "3.27.0"
       - name: vcpkg cache
         uses: lukka/run-vcpkg@v10
         with:
