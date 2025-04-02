@@ -33,9 +33,9 @@ jobs:
         with:
           cmakeListsTxtPath: ${{ github.workspace }}/CMakeLists.txt
           configurePreset: default
-          configurePresetAdditionalArgs: "['-DCMAKE_TOOLCHAIN_FILE:STRING=C:/vcpkg/scripts/buildsystems/vcpkg.cmake']"
+          configurePresetAdditionalArgs: "['-DCMAKE_TOOLCHAIN_FILE:STRING=C:/vcpkg/scripts/buildsystems/vcpkg.cmake','-DCMAKE_POLICY_VERSION_MINIMUM=3.5']"
           buildPreset: release
-          buildPresetAdditionalArgs: "['--config Release']"
+          buildPresetAdditionalArgs: "['--config Release','-DCMAKE_POLICY_VERSION_MINIMUM=3.5']"
       - name: Move binaries
         run: |
           cd ${{github.workspace}}/build/bin/release
