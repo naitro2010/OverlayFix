@@ -8,6 +8,7 @@ on:
         description: 'Version String'
         type: string
 env:
+  VCPKG_BINARY_SOURCES: clear
   BUILD_TYPE: Release
   PROJECT_NAME: OverlayFix
   PROJECT_LONG_NAME: SKEE64 Overlay Fix for Skyrim
