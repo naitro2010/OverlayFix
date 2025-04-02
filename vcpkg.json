@@ -15,8 +15,14 @@
       ]
     }
   },
+  
   "default-features": [
     "plugin"
   ],
-  "builtin-baseline": "a4275b7eee79fb24ec2e135481ef5fce8b41c339"
+  "builtin-baseline": "b02e341c927f16d991edbd915d8ea43eac52096c",
+  "overrides": [
+  { 
+    "name":"spdlog",
+    "version":"1.15.2"
+  }]
 }

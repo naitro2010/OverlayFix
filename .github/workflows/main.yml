@@ -27,7 +27,7 @@ jobs:
       - name: vcpkg cache
         uses: lukka/run-vcpkg@v10
         with:
-          vcpkgGitCommitId: "a4275b7eee79fb24ec2e135481ef5fce8b41c339"        
+          vcpkgGitCommitId: "b02e341c927f16d991edbd915d8ea43eac52096c"        
       - name: Run CMake
         uses: lukka/run-cmake@v10
         with:
