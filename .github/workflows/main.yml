@@ -31,6 +31,7 @@ jobs:
       - name: Clear Buildtree
         run: |
           rm -r ./vcpkg/buildtrees          
+          rm -r C:/vcpkg/buildtrees 
       - name: Run CMake
         uses: lukka/run-cmake@v10
         with:
