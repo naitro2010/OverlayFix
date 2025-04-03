@@ -299,17 +299,22 @@ namespace plugin {
     }
     static std::atomic<uint32_t> skee_loaded = 0;
     static std::atomic<uint32_t> samrim_loaded = 0;
+    static bool skip_load=false;
     void GameEventHandler::onPostPostLoad() {
         mINI::INIFile file("Data\\skse\\plugins\\OverlayFix.ini");
         mINI::INIStructure ini;
         if (file.read(ini) == false) {
             ini["OverlayFix"]["reverse"] = "default";
+            ini["OverlayFix"]["skipload"] = "false";
             file.generate(ini);
         } else {
             if (ini["OverlayFix"]["reverse"] == "true") {
                 do_reverse = true;
             } else if (ini["OverlayFix"]["reverse"] == "false") {
                 do_reverse = false;
+            }
+            if (ini["OverlayFix"]["skipload"] == "true") {
+                skip_load = true;
             }
         }
         if (HMODULE handle = GetModuleHandleA("skee64.dll")) {
@@ -375,6 +380,11 @@ namespace plugin {
                     }
 
 #endif
+                    if (skip_load==true) {
+                        uintptr_t skip_load_addr = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0xa7a70);
+                        REL::safe_write(skip_load_addr, (uint8_t*) "\x48\xe9", 2);
+                        logger::info("SKEE64 1170 skipping SKEE co-save loading to fix corrupted save.");
+                    }
                     logger::info("SKEE64 patched");
                 } else if ((skee64_info.SizeOfImage >= 0x16b478 + 7) &&
                            memcmp("BODYTRI", (void*) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x16b478), 7) == 0) {
@@ -412,6 +422,11 @@ namespace plugin {
                         DetourTransactionCommit();
                         logger::info("SKEE64 1597 crash fix 2 applied");
 #endif
+                        if (skip_load==true) {
+                            uintptr_t skip_load_addr = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x4e32a);
+                            REL::safe_write(skip_load_addr, (uint8_t*) "\x48\xe9", 2);
+                            logger::info("SKEE64 1597 skipping SKEE co-save loading to fix corrupted save.");
+                        }
                     }
                     logger::info("SKEE64 0416 patched");
                 } else if ((skee64_info.SizeOfImage >= 0x17ec68 + 7) &&
