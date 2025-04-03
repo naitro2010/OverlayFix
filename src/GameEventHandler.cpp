@@ -212,7 +212,7 @@ namespace plugin {
             logger::info("Invalid DeepCopy, skipping copy");
             return;
         }
-        logger::info("DeepCopy vtable {:08X}, checking refcount", *(uintptr_t*) param_1);
+        //logger::info("DeepCopy vtable {:08X}, checking refcount", *(uintptr_t*) param_1);
         if (RE::NiObject* object = (RE::NiObject*) param_1) {
             if (object->_refCount == 0) {
                 logger::info("Invalid DeepCopy ref count, skipping copy", *(uintptr_t*) param_1);
