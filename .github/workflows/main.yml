@@ -8,7 +8,6 @@ on:
         description: 'Version String'
         type: string
 env:
-  VCPKG_BINARY_SOURCES: clear
   BUILD_TYPE: Release
   PROJECT_NAME: OverlayFix
   PROJECT_LONG_NAME: SKEE64 Overlay Fix for Skyrim
@@ -25,7 +24,7 @@ jobs:
         with:
           cmakeVersion: "3.27.4"
       - name: vcpkg cache
-        uses: lukka/run-vcpkg@v10
+        uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: "b02e341c927f16d991edbd915d8ea43eac52096c"        
       - name: Run CMake

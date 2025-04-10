@@ -14,13 +14,14 @@
 #define DISMEMBER_CRASH_FIX_ALPHA
 #define STEAMDECK_CRASH_FIX
 static bool do_reverse = false;
+static bool print_flags = true;
+static bool overlay_culling_fix = true;
 struct Code : Xbyak::CodeGenerator {
         Code(uint64_t offset) {
             mov(rax, offset);
             jmp(rax);
         }
 };
-
 
 struct SKEENullFix : Xbyak::CodeGenerator {
         SKEENullFix(uint64_t offset) {
@@ -204,8 +205,8 @@ namespace plugin {
                                                                               RE::TESObjectREFR* param_4, RE::BSGeometry* geo,
                                                                               RE::NiNode* param_5, RE::BGSTextureSet* param_6)) 0x0;
     static void (*DeepCopyDetour)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
-                                      uint64_t param_4) = (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
-                                                                    uint64_t param_4)) 0x0;
+                                  uint64_t param_4) = (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
+                                                                uint64_t param_4)) 0x0;
     static uint64_t skin_vtable = 0x0;
     static void DeepCopy_fn(uint64_t param_1, uint64_t* param_2, uint64_t param_3, uint64_t param_4) {
         if (param_1 == 0x0) {
@@ -296,16 +297,36 @@ namespace plugin {
             }
         }
         InstallOverlayHook(inter, param_2, param_3, param_4, geo, param_5, param_6);
+        if (param_5) {
+            if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(geometry_node_name)) {
+                found_geo = found_geometry->AsGeometry();
+                if (found_geo != nullptr && print_flags==true) {
+                    if (found_geo->GetGeometryRuntimeData().properties[1]) {
+                        auto shader_prop = (RE::BSLightingShaderProperty*) found_geo->GetGeometryRuntimeData().properties[1].get();
+                        if (shader_prop != nullptr) {
+                            logger::info("before culling fix: overlay {} flags {} NiAVObjectFlags {}", param_2, shader_prop->flags.underlying(),found_geo->GetFlags().underlying());
+                            if (overlay_culling_fix == true) {
+                                found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
+                            
+                                logger::info("after culling fix: overlay {} flags {} NiAVObjectFlags {}", param_2, shader_prop->flags.underlying(),
+                                         found_geo->GetFlags().underlying());
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
     static std::atomic<uint32_t> skee_loaded = 0;
     static std::atomic<uint32_t> samrim_loaded = 0;
-    static bool skip_load=false;
+    static bool skip_load = false;
     void GameEventHandler::onPostPostLoad() {
         mINI::INIFile file("Data\\skse\\plugins\\OverlayFix.ini");
         mINI::INIStructure ini;
         if (file.read(ini) == false) {
             ini["OverlayFix"]["reverse"] = "default";
             ini["OverlayFix"]["skipload"] = "false";
+            ini["OverlayFix"]["nocull"] = "default";
             file.generate(ini);
         } else {
             if (ini["OverlayFix"]["reverse"] == "true") {
@@ -315,6 +336,11 @@ namespace plugin {
             }
             if (ini["OverlayFix"]["skipload"] == "true") {
                 skip_load = true;
+            }
+            if (ini["OverlayFix"]["nocull"] == "true") {
+                overlay_culling_fix = true;
+            } else if (ini["OverlayFix"]["nocull"] == "false") {
+                overlay_culling_fix = false;
             }
         }
         if (HMODULE handle = GetModuleHandleA("skee64.dll")) {
@@ -345,7 +371,7 @@ namespace plugin {
                         do_reverse = true;
                     }
 #ifdef CRASH_FIX_ALPHA
-                    skin_vtable = (uintptr_t)REL::Offset(0x19b0718).address();
+                    skin_vtable = (uintptr_t) REL::Offset(0x19b0718).address();
                     auto deepcopy_addr = (uintptr_t) REL::Offset(0xd18080).address();
                     DeepCopyDetour =
                         (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3, uint64_t param_4)) REL::Offset(0xd18080).address();
@@ -380,7 +406,7 @@ namespace plugin {
                     }
 
 #endif
-                    if (skip_load==true) {
+                    if (skip_load == true) {
                         uintptr_t skip_load_addr = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0xa7a70);
                         REL::safe_write(skip_load_addr, (uint8_t*) "\x48\xe9", 2);
                         logger::info("SKEE64 1170 skipping SKEE co-save loading to fix corrupted save.");
@@ -401,7 +427,7 @@ namespace plugin {
                     auto version = REL::Module::get().version();
                     if (version == REL::Version(1, 5, 97, 0)) {
 #ifdef CRASH_FIX_ALPHA
-                        skin_vtable = (uint64_t)REL::Offset(0x176a0a0).address();
+                        skin_vtable = (uint64_t) REL::Offset(0x176a0a0).address();
 
                         DeepCopyDetour =
                             (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3, uint64_t param_4)) REL::Offset(0xc529a0)
@@ -422,7 +448,7 @@ namespace plugin {
                         DetourTransactionCommit();
                         logger::info("SKEE64 1597 crash fix 2 applied");
 #endif
-                        if (skip_load==true) {
+                        if (skip_load == true) {
                             uintptr_t skip_load_addr = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x4e32a);
                             REL::safe_write(skip_load_addr, (uint8_t*) "\x48\xe9", 2);
                             logger::info("SKEE64 1597 skipping SKEE co-save loading to fix corrupted save.");
@@ -471,6 +497,17 @@ namespace plugin {
                     REL::safe_write(patch2, (uint8_t*) "\x90\x90\x90\x90\x90\x90\x90\x90", 8);
                     REL::safe_write(patch3, (uint8_t*) "\x8b\xd1\x90\x90", 4);
                     REL::safe_write(patch4, (uint8_t*) "\x90\x90", 2);
+#ifdef DISMEMBER_CRASH_FIX_ALPHA
+                    logger::info("SKEEVR InstallOverlay patching");
+                    InstallOverlayHook =
+                        (void (*)(void* inter, const char* param_2, const char* param_3, RE::TESObjectREFR* param_4, RE::BSGeometry* geo,
+                                  RE::NiNode* param_5, RE::BGSTextureSet* param_6))((uint64_t) skee64_info.lpBaseOfDll + 0x7c4b0);
+                    DetourTransactionBegin();
+                    DetourUpdateThread(GetCurrentThread());
+                    DetourAttach(&(PVOID&) InstallOverlayHook, &InstallOverlayHook_fn);
+                    DetourTransactionCommit();
+                    logger::info("SKEEVR InstallOverlay patched");
+#endif
                     logger::info("SKEE64 VR patched");
                 } else {
                     logger::error("Wrong SKEE64 version");
@@ -494,7 +531,19 @@ namespace plugin {
                     REL::safe_write(patch2, (uint8_t*) "\x90\x90\x90\x90\x90\x90\x90\x90", 8);
                     REL::safe_write(patch3, (uint8_t*) "\x8b\xd1\x90\x90", 4);
                     REL::safe_write(patch4, (uint8_t*) "\x90\x90", 2);
+#ifdef DISMEMBER_CRASH_FIX_ALPHA
+                    logger::info("SKEEVR InstallOverlay patching");
+                    InstallOverlayHook =
+                        (void (*)(void* inter, const char* param_2, const char* param_3, RE::TESObjectREFR* param_4, RE::BSGeometry* geo,
+                                  RE::NiNode* param_5, RE::BGSTextureSet* param_6))((uint64_t) skee64_info.lpBaseOfDll + 0x7c4b0);
+                    DetourTransactionBegin();
+                    DetourUpdateThread(GetCurrentThread());
+                    DetourAttach(&(PVOID&) InstallOverlayHook, &InstallOverlayHook_fn);
+                    DetourTransactionCommit();
+                    logger::info("SKEEVR InstallOverlay patched");
+#endif
                     logger::info("SKEE64 VR patched");
+
                 } else {
                     logger::error("Wrong SKEE64 VR version");
                 }
