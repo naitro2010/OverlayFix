@@ -44,7 +44,7 @@ struct SKEENullFix : Xbyak::CodeGenerator {
 static auto CoSaveStoreLogAddr = (void (*)(void*,void*,unsigned int)) 0x0;
 static void CoSaveStoreLog(void* cosaveinterface, void * obj, unsigned int stackID) {
     
-    logger::info("Co-Save logging starts here");
+    logger::info("Co-Save logging starts here {:016X} {:08X}",(DWORD64)obj,stackID);
     void* frames[256];
     unsigned short frame_count;
     SYMBOL_INFO_PACKAGE symbol;
@@ -53,8 +53,14 @@ static void CoSaveStoreLog(void* cosaveinterface, void * obj, unsigned int stack
     SymInitialize(GetCurrentProcess(), NULL, TRUE); 
     frame_count=CaptureStackBackTrace(0, 256, frames, NULL);
     for (int i = 0; i < frame_count; i++) {
-        SymFromAddr(GetCurrentProcess(), (DWORD64) frames[i], 0, &symbol.si);
-        logger::info("{:08X} {:08X} {}",(DWORD64) frames[i],symbol.si.Address,symbol.si.Name);
+        MEMORY_BASIC_INFORMATION frame_info;
+        if (VirtualQuery(frames[i], &frame_info, sizeof(frame_info)) == 0) {
+            continue;
+        }
+        char mod_name[2801] = "";
+        GetModuleFileNameA((HMODULE) frame_info.AllocationBase, mod_name, 2800);
+        logger::info("{} {:016X} {:016X} {} {:016X}",i, (DWORD64) frames[i],
+                     (DWORD64)frames[i] - (DWORD64)frame_info.AllocationBase,mod_name,(DWORD64)frame_info.AllocationBase);
     }
     
     CoSaveStoreLogAddr(cosaveinterface,obj,stackID);
