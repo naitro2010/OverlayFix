@@ -6,6 +6,7 @@
 #include "SKSE/Interfaces.h"
 #include "Hooks.h"
 #include <windows.h>
+#include <dbghelp.h> 
 #include <psapi.h>
 #include <xbyak/xbyak.h>
 #include "ini.h"
@@ -13,6 +14,7 @@
 #define CRASH_FIX_ALPHA
 #define DISMEMBER_CRASH_FIX_ALPHA
 #define STEAMDECK_CRASH_FIX
+#define SKSE_COSAVE_STACK_WORKAROUND
 static bool do_reverse = false;
 static bool print_flags = true;
 static bool overlay_culling_fix = true;
@@ -39,8 +41,39 @@ struct SKEENullFix : Xbyak::CodeGenerator {
             ret();
         }
 };
+static auto CoSaveDropStacksAddr = (void (*)(void*)) 0x0;
+static void CoSaveDropStacksBypass(void*)
+{
+    return;
+}
+/*
+static auto CoSaveStoreLogAddr = (void (*)(void*,void*,unsigned int)) 0x0;
+static void CoSaveStoreLog(void* cosaveinterface, void * obj, unsigned int stackID) {
+    logger::info("Co-Save logging starts here {:016X} {:08X}",(DWORD64)obj,stackID);
+    void* frames[256];
+    unsigned short frame_count;
+    SYMBOL_INFO_PACKAGE symbol;
+    symbol.si.MaxNameLen = MAX_SYM_NAME;
+    symbol.si.SizeOfStruct = sizeof(SYMBOL_INFO);
+    SymInitialize(GetCurrentProcess(), NULL, TRUE); 
+    frame_count=CaptureStackBackTrace(0, 256, frames, NULL);
+    for (int i = 0; i < frame_count; i++) {
+        MEMORY_BASIC_INFORMATION frame_info;
+        if (VirtualQuery(frames[i], &frame_info, sizeof(frame_info)) == 0) {
+            continue;
+        }
+        char mod_name[2801] = "";
+        GetModuleFileNameA((HMODULE) frame_info.AllocationBase, mod_name, 2800);
+        logger::info("{} {:016X} {:016X} {} {:016X}",i, (DWORD64) frames[i],
+                     (DWORD64)frames[i] - (DWORD64)frame_info.AllocationBase,mod_name,(DWORD64)frame_info.AllocationBase);
+    }
+    
+    CoSaveStoreLogAddr(cosaveinterface,obj,stackID);
+    logger::info("Co-Save logging ends here");
+}*/
 #undef GetObject
 namespace plugin {
+
     void WalkOverlays(RE::NiAVObject* CurrentObject, bool hide,
                       std::function<void(RE::NiPointer<RE::NiNode>, RE::NiPointer<RE::NiAVObject>, uint32_t)>& sort_callback) {
         if (CurrentObject == nullptr) {
@@ -300,16 +333,17 @@ namespace plugin {
         if (param_5) {
             if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(geometry_node_name)) {
                 found_geo = found_geometry->AsGeometry();
-                if (found_geo != nullptr && print_flags==true) {
+                if (found_geo != nullptr && print_flags == true) {
                     if (found_geo->GetGeometryRuntimeData().properties[1]) {
                         auto shader_prop = (RE::BSLightingShaderProperty*) found_geo->GetGeometryRuntimeData().properties[1].get();
                         if (shader_prop != nullptr) {
-                            logger::info("before culling fix: overlay {} flags {} NiAVObjectFlags {}", param_2, shader_prop->flags.underlying(),found_geo->GetFlags().underlying());
+                            logger::info("before culling fix: overlay {} flags {} NiAVObjectFlags {}", param_2,
+                                         shader_prop->flags.underlying(), found_geo->GetFlags().underlying());
                             if (overlay_culling_fix == true) {
                                 found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
-                            
-                                logger::info("after culling fix: overlay {} flags {} NiAVObjectFlags {}", param_2, shader_prop->flags.underlying(),
-                                         found_geo->GetFlags().underlying());
+
+                                logger::info("after culling fix: overlay {} flags {} NiAVObjectFlags {}", param_2,
+                                             shader_prop->flags.underlying(), found_geo->GetFlags().underlying());
                             }
                         }
                     }
@@ -319,6 +353,8 @@ namespace plugin {
     }
     static std::atomic<uint32_t> skee_loaded = 0;
     static std::atomic<uint32_t> samrim_loaded = 0;
+    static std::atomic<uint32_t> skse_loaded = 0;
+    static bool save_danger = false;
     static bool skip_load = false;
     void GameEventHandler::onPostPostLoad() {
         mINI::INIFile file("Data\\skse\\plugins\\OverlayFix.ini");
@@ -327,6 +363,7 @@ namespace plugin {
             ini["OverlayFix"]["reverse"] = "default";
             ini["OverlayFix"]["skipload"] = "false";
             ini["OverlayFix"]["nocull"] = "default";
+            ini["OverlayFix"]["savedanger"] = "default";
             file.generate(ini);
         } else {
             if (ini["OverlayFix"]["reverse"] == "true") {
@@ -341,6 +378,9 @@ namespace plugin {
                 overlay_culling_fix = true;
             } else if (ini["OverlayFix"]["nocull"] == "false") {
                 overlay_culling_fix = false;
+            }
+            if (ini["OverlayFix"]["savedanger"] == "true") {
+                save_danger = true;
             }
         }
         if (HMODULE handle = GetModuleHandleA("skee64.dll")) {
@@ -562,6 +602,33 @@ namespace plugin {
                     const uint8_t* hook0 = c0.getCode();
                     REL::safe_write(patch0, hook0, c0.getSize());
                     logger::info("SAM patched");
+                }
+            }
+        }
+#endif
+#ifdef SKSE_COSAVE_STACK_WORKAROUND
+        if (save_danger == true) {
+            if (HMODULE handleskse = GetModuleHandleA("skse64_1_6_1170.dll")) {
+                MODULEINFO skse_info;
+                GetModuleInformation(GetCurrentProcess(), handleskse, &skse_info, sizeof(skse_info));
+                uint32_t expected = 0;
+                if (skse_loaded.compare_exchange_strong(expected, 1) == true && expected == 0) {
+                    unsigned char signature[] = {0x4c, 0x8b, 0xa2, 0x00, 0x02, 0x00, 0x00, 0x49, 0x8b, 0x55, 0x30, 0x48, 0x2b, 0xc2,
+                                                 0x48, 0xc1, 0xf8, 0x04, 0x48, 0x85, 0xc0, 0x0f, 0x84, 0x76, 0x01, 0x00, 0x00};
+                    if ((skse_info.SizeOfImage >= 0x5e000) &&
+                        memcmp((void*) signature, (void*) ((uintptr_t) skse_info.lpBaseOfDll + (uintptr_t) 0x5d550), sizeof(signature)) ==
+                            0) {
+                        //logger::info("Patching Co-Save Logging for debugging CTD");
+                        //CoSaveStoreLogAddr=(void (*)(void*, void*, unsigned int))((uintptr_t) skse_info.lpBaseOfDll + (uintptr_t) 0x5d890);
+                        CoSaveDropStacksAddr = (void (*)(void*))((uintptr_t) skse_info.lpBaseOfDll + (uintptr_t) 0x5d530);
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) CoSaveDropStacksAddr, &CoSaveDropStacksBypass);
+                        DetourTransactionCommit();
+                        logger::info(
+                            "Patched Co-Save Persistent Object save to prevent CTD, this may cause save corruption and should only be used "
+                            "in one case.");
+                    }
                 }
             }
         }
