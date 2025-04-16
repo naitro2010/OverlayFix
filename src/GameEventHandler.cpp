@@ -16,6 +16,7 @@
 #define STEAMDECK_CRASH_FIX
 #define SKSE_COSAVE_STACK_WORKAROUND
 #define VR_ESL_SUPPORT
+#define PARALLEL_MORPH_WORKAROUND
 static bool do_reverse = false;
 static bool print_flags = true;
 static bool overlay_culling_fix = true;
@@ -253,6 +254,7 @@ namespace plugin {
                                       RE::BGSTextureSet* param_6) = (void (*)(void* inter, const char* param_2, const char* param_3,
                                                                               RE::TESObjectREFR* param_4, RE::BSGeometry* geo,
                                                                               RE::NiNode* param_5, RE::BGSTextureSet* param_6)) 0x0;
+    static void (*UpdateMorphsHook)(void*, void*, void*) = (void (*)(void*, void*, void*)) 0x0;
     static void (*DeepCopyDetour)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
                                   uint64_t param_4) = (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
                                                                 uint64_t param_4)) 0x0;
@@ -320,6 +322,13 @@ namespace plugin {
             }
         }*/
         OverlayHook2(inter, param_2, param_3, param_4, param_5, param_6);
+    }
+    std::recursive_mutex update_morphs_mutex;
+    static void UpdateMorphsHook_fn(void* arg1, void* arg2, void* arg3) {
+        {
+            std::lock_guard<std::recursive_mutex> l(update_morphs_mutex);
+            UpdateMorphsHook(arg1, arg2, arg3);
+        }
     }
     static void InstallOverlayHook_fn(void* inter, const char* param_2, const char* param_3, RE::TESObjectREFR* param_4,
                                       RE::BSGeometry* geo, RE::NiNode* param_5, RE::BGSTextureSet* param_6) {
@@ -489,6 +498,15 @@ namespace plugin {
                     REL::safe_write(patch4, (uint8_t*) "\x90\x90", 2);
                     auto version = REL::Module::get().version();
                     if (version == REL::Version(1, 5, 97, 0)) {
+#ifdef PARALLEL_MORPH_WORKAROUND
+                        logger::info("SKEE64 1597 parallel morph workaround applying");
+                        UpdateMorphsHook = (void (*)(void*, void*, void*))((uint64_t) skee64_info.lpBaseOfDll + 0x86d0);
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) UpdateMorphsHook, &UpdateMorphsHook_fn);
+                        DetourTransactionCommit();
+                        logger::info("SKEE64 1597 parallel morph workaround applied");
+#endif
 #ifdef CRASH_FIX_ALPHA
                         skin_vtable = (uint64_t) REL::Offset(0x176a0a0).address();
 
@@ -575,6 +593,8 @@ namespace plugin {
                     if (vr_esl == true) {
                         void** lookupform_addr = (void**)((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1c7c80);
                         lookupform_addr[0] = LookupFormSKEEVR;
+                        auto formidentnovalididentifier_addr = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x63ffd);
+                        REL::safe_write(formidentnovalididentifier_addr, (uint8_t*) "\x48\xe9", 0x2);
                         logger::info("SKEEVR extra ESL patches applied");
                     }
 
