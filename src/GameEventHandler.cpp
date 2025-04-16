@@ -6,7 +6,7 @@
 #include "SKSE/Interfaces.h"
 #include "Hooks.h"
 #include <windows.h>
-#include <dbghelp.h> 
+#include <dbghelp.h>
 #include <psapi.h>
 #include <xbyak/xbyak.h>
 #include "ini.h"
@@ -15,6 +15,8 @@
 #define DISMEMBER_CRASH_FIX_ALPHA
 #define STEAMDECK_CRASH_FIX
 #define SKSE_COSAVE_STACK_WORKAROUND
+#define VR_ESL_SUPPORT
+#define PARALLEL_MORPH_WORKAROUND
 static bool do_reverse = false;
 static bool print_flags = true;
 static bool overlay_culling_fix = true;
@@ -42,9 +44,24 @@ struct SKEENullFix : Xbyak::CodeGenerator {
         }
 };
 static auto CoSaveDropStacksAddr = (void (*)(void*)) 0x0;
-static void CoSaveDropStacksBypass(void*)
-{
+static void CoSaveDropStacksBypass(void*) {
     return;
+}
+static auto LookupFormSKEEVRAddr = (RE::TESForm* (*)(RE::FormID)) 0x0;
+static RE::TESForm* LookupFormSKEEVR(RE::FormID id) {
+    if (auto data_handler = RE::TESDataHandler::GetSingleton()) {
+        if ((id & 0xFF000000) == 0xFE000000) {
+            if (auto mod_file = data_handler->LookupLoadedLightModByIndex((uint16_t)((id & 0xFFF000) >> 12))) {
+                return data_handler->LookupForm(data_handler->LookupFormIDRaw(id, mod_file->fileName), mod_file->fileName);
+            }
+        } else {
+            if (auto mod_file = data_handler->LookupLoadedModByIndex(id >> 24)) {
+                return data_handler->LookupForm(data_handler->LookupFormIDRaw(id, mod_file->fileName), mod_file->fileName);
+            }
+            
+        }
+    }
+    return nullptr;
 }
 /*
 static auto CoSaveStoreLogAddr = (void (*)(void*,void*,unsigned int)) 0x0;
@@ -237,6 +254,7 @@ namespace plugin {
                                       RE::BGSTextureSet* param_6) = (void (*)(void* inter, const char* param_2, const char* param_3,
                                                                               RE::TESObjectREFR* param_4, RE::BSGeometry* geo,
                                                                               RE::NiNode* param_5, RE::BGSTextureSet* param_6)) 0x0;
+    static void (*UpdateMorphsHook)(void*, void*, void*) = (void (*)(void*, void*, void*)) 0x0;
     static void (*DeepCopyDetour)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
                                   uint64_t param_4) = (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
                                                                 uint64_t param_4)) 0x0;
@@ -305,6 +323,13 @@ namespace plugin {
         }*/
         OverlayHook2(inter, param_2, param_3, param_4, param_5, param_6);
     }
+    std::recursive_mutex update_morphs_mutex;
+    static void UpdateMorphsHook_fn(void* arg1, void* arg2, void* arg3) {
+        {
+            std::lock_guard<std::recursive_mutex> l(update_morphs_mutex);
+            UpdateMorphsHook(arg1, arg2, arg3);
+        }
+    }
     static void InstallOverlayHook_fn(void* inter, const char* param_2, const char* param_3, RE::TESObjectREFR* param_4,
                                       RE::BSGeometry* geo, RE::NiNode* param_5, RE::BGSTextureSet* param_6) {
         RE::BSFixedString geometry_node_name(param_2);
@@ -356,6 +381,7 @@ namespace plugin {
     static std::atomic<uint32_t> skse_loaded = 0;
     static bool save_danger = false;
     static bool skip_load = false;
+    static bool vr_esl = true;
     void GameEventHandler::onPostPostLoad() {
         mINI::INIFile file("Data\\skse\\plugins\\OverlayFix.ini");
         mINI::INIStructure ini;
@@ -364,8 +390,9 @@ namespace plugin {
             ini["OverlayFix"]["skipload"] = "false";
             ini["OverlayFix"]["nocull"] = "default";
             ini["OverlayFix"]["savedanger"] = "default";
-            file.generate(ini);
+            ini["OverlayFix"]["vresl"] = "default";
         } else {
+            file.generate(ini);
             if (ini["OverlayFix"]["reverse"] == "true") {
                 do_reverse = true;
             } else if (ini["OverlayFix"]["reverse"] == "false") {
@@ -381,6 +408,11 @@ namespace plugin {
             }
             if (ini["OverlayFix"]["savedanger"] == "true") {
                 save_danger = true;
+            }
+            if (ini["OverlayFix"]["vresl"] == "true") {
+                vr_esl = true;
+            } else if (ini["OverlayFix"]["vresl"] == "false") {
+                vr_esl = false;
             }
         }
         if (HMODULE handle = GetModuleHandleA("skee64.dll")) {
@@ -466,6 +498,15 @@ namespace plugin {
                     REL::safe_write(patch4, (uint8_t*) "\x90\x90", 2);
                     auto version = REL::Module::get().version();
                     if (version == REL::Version(1, 5, 97, 0)) {
+#ifdef PARALLEL_MORPH_WORKAROUND
+                        logger::info("SKEE64 1597 parallel morph workaround applying");
+                        UpdateMorphsHook = (void (*)(void*, void*, void*))((uint64_t) skee64_info.lpBaseOfDll + 0x86d0);
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) UpdateMorphsHook, &UpdateMorphsHook_fn);
+                        DetourTransactionCommit();
+                        logger::info("SKEE64 1597 parallel morph workaround applied");
+#endif
 #ifdef CRASH_FIX_ALPHA
                         skin_vtable = (uint64_t) REL::Offset(0x176a0a0).address();
 
@@ -548,6 +589,14 @@ namespace plugin {
                     DetourTransactionCommit();
                     logger::info("SKEEVR InstallOverlay patched");
 #endif
+#ifdef VR_ESL_SUPPORT
+                    if (vr_esl == true) {
+                        void** lookupform_addr = (void**)((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1c7c80);
+                        lookupform_addr[0] = LookupFormSKEEVR;
+                        logger::info("SKEEVR extra ESL patches applied");
+                    }
+
+#endif
                     logger::info("SKEE64 VR patched");
                 } else {
                     logger::error("Wrong SKEE64 version");
@@ -581,6 +630,15 @@ namespace plugin {
                     DetourAttach(&(PVOID&) InstallOverlayHook, &InstallOverlayHook_fn);
                     DetourTransactionCommit();
                     logger::info("SKEEVR InstallOverlay patched");
+#endif
+#ifdef VR_ESL_SUPPORT
+                    if (vr_esl == true) {
+                        void **lookupform_addr=(void**)((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1c7c80);
+                        lookupform_addr[0] = LookupFormSKEEVR;
+                        logger::info("SKEEVR extra ESL patches applied");
+                    }
+                   
+                    
 #endif
                     logger::info("SKEE64 VR patched");
 
