@@ -635,12 +635,13 @@ namespace plugin {
 #endif
 #ifdef VR_ESL_SUPPORT
                     if (vr_esl == true) {
-                        void **lookupform_addr=(void**)((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1c7c80);
+                        void** lookupform_addr = (void**)((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1c7c80);
                         lookupform_addr[0] = LookupFormSKEEVR;
+                        auto formidentnovalididentifier_addr = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x63ffd);
+                        REL::safe_write(formidentnovalididentifier_addr, (uint8_t*) "\x48\xe9", 0x2);
                         logger::info("SKEEVR extra ESL patches applied");
                     }
-                   
-                    
+
 #endif
                     logger::info("SKEE64 VR patched");
 
