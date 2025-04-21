@@ -11,6 +11,7 @@
 #include <xbyak/xbyak.h>
 #include "ini.h"
 #include "detours/detours.h"
+#define SAMRIM_NAME_PATCH
 #define CRASH_FIX_ALPHA
 #define DISMEMBER_CRASH_FIX_ALPHA
 #define STEAMDECK_CRASH_FIX
