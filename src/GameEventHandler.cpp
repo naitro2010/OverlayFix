@@ -15,7 +15,6 @@
 #define DISMEMBER_CRASH_FIX_ALPHA
 #define STEAMDECK_CRASH_FIX
 #define SKSE_COSAVE_STACK_WORKAROUND
-#define VR_ESL_SUPPORT
 #define PARALLEL_MORPH_WORKAROUND
 static bool do_reverse = false;
 static bool print_flags = true;
