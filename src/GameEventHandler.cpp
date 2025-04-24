@@ -477,6 +477,15 @@ namespace plugin {
                     }
 
 #endif
+#ifdef PARALLEL_MORPH_WORKAROUND
+                    logger::info("SKEE64 1170 parallel morph workaround applying");
+                    UpdateMorphsHook = (void (*)(void*, void*, void*))((uint64_t) skee64_info.lpBaseOfDll + 0x167b0);
+                    DetourTransactionBegin();
+                    DetourUpdateThread(GetCurrentThread());
+                    DetourAttach(&(PVOID&) UpdateMorphsHook, &UpdateMorphsHook_fn);
+                    DetourTransactionCommit();
+                    logger::info("SKEE64 1170 parallel morph workaround applied");
+#endif
                     if (skip_load == true) {
                         uintptr_t skip_load_addr = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0xa7a70);
                         REL::safe_write(skip_load_addr, (uint8_t*) "\x48\xe9", 2);
