@@ -46,6 +46,7 @@ static auto CoSaveDropStacksAddr = (void (*)(void*)) 0x0;
 static void CoSaveDropStacksBypass(void*) {
     return;
 }
+#ifdef VR_ESL_SUPPORT
 static auto LookupFormSKEEVRAddr = (RE::TESForm* (*)(RE::FormID)) 0x0;
 static RE::TESForm* LookupFormSKEEVR(RE::FormID id) {
     if (auto data_handler = RE::TESDataHandler::GetSingleton()) {
@@ -62,6 +63,7 @@ static RE::TESForm* LookupFormSKEEVR(RE::FormID id) {
     }
     return nullptr;
 }
+#endif
 /*
 static auto CoSaveStoreLogAddr = (void (*)(void*,void*,unsigned int)) 0x0;
 static void CoSaveStoreLog(void* cosaveinterface, void * obj, unsigned int stackID) {
