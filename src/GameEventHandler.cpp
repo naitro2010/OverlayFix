@@ -324,6 +324,7 @@ namespace plugin {
         }*/
         OverlayHook2(inter, param_2, param_3, param_4, param_5, param_6);
     }
+#ifdef PARALLEL_MORPH_WORKAROUND
     std::recursive_mutex update_morphs_mutex;
     static void UpdateMorphsHook_fn(void* arg1, void* arg2, void* arg3) {
         {
@@ -331,6 +332,7 @@ namespace plugin {
             UpdateMorphsHook(arg1, arg2, arg3);
         }
     }
+#endif
 #ifdef MORPHCACHE_SHRINK_WORKAROUND
     static void (*CacheShrinkHook)(void*) = (void (*)(void*)) 0x0;
     static void (*CacheClearHook)(void*) = (void (*)(void*)) 0x0;
