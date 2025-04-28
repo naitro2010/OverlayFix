@@ -336,14 +336,22 @@ namespace plugin {
 #ifdef MORPHCACHE_SHRINK_WORKAROUND
     static void (*CacheShrinkHook)(void*) = (void (*)(void*)) 0x0;
     static void (*CacheClearHook)(void*) = (void (*)(void*)) 0x0;
+    static uintptr_t Morph_vtable = 0x0;
     static void CacheShrinkHook_fn(void* morphCache) {
         uintptr_t cache_ptr = (uintptr_t) morphCache;
         uintptr_t limit_ptr = cache_ptr + 0x48;
         uintptr_t current_ptr = cache_ptr + 0x50;
+        uintptr_t interface_ptr = cache_ptr - 0x58;
+        //logger::info("Shrink Morph Cache was called");
         if (morphCache != nullptr) {
-            if (*(uint64_t*) current_ptr >= *(uint64_t*) limit_ptr) {
-                logger::info("Clearing Morph Cache to prevent crash");
-                CacheClearHook(morphCache);
+            if (*(uintptr_t*)interface_ptr != Morph_vtable) {
+                logger::info("Incorrect interface for morphs, not clearing");
+            } else {
+                //CacheClearHook((void*) interface_ptr);
+                if (*(uint64_t*) current_ptr >= *(uint64_t*) limit_ptr) {
+                    logger::info("Clearing Morph Cache to prevent crash");
+                    CacheClearHook((void*) interface_ptr);
+                }
             }
         }
     }
@@ -507,7 +515,8 @@ namespace plugin {
 #endif
 #ifdef MORPHCACHE_SHRINK_WORKAROUND
                     CacheShrinkHook = (void (*)(void*))((uint64_t) skee64_info.lpBaseOfDll + 0x1d280);
-                    CacheClearHook = (void (*)(void*))((uint64_t) skee64_info.lpBaseOfDll + 0x1d490);
+                    CacheClearHook = (void (*)(void*))((uint64_t) skee64_info.lpBaseOfDll + 0x18c30);
+                    Morph_vtable=((uintptr_t) skee64_info.lpBaseOfDll + 0x1df598);
                     logger::info("SKEE64 1170 morphcache shrink workaround applying");
                     DetourTransactionBegin();
                     DetourUpdateThread(GetCurrentThread());
@@ -547,7 +556,8 @@ namespace plugin {
 #endif
 #ifdef MORPHCACHE_SHRINK_WORKAROUND
                         CacheShrinkHook = (void (*)(void*))((uint64_t) skee64_info.lpBaseOfDll + 0x8c10);
-                        CacheClearHook = (void (*)(void*))((uint64_t) skee64_info.lpBaseOfDll + 0x8de0);
+                        CacheClearHook = (void (*)(void*))((uint64_t) skee64_info.lpBaseOfDll + 0x5340);
+                        Morph_vtable = ((uintptr_t) skee64_info.lpBaseOfDll + 0x173ec8);
                         logger::info("SKEE64 1597 morphcache shrink workaround applying");
                         DetourTransactionBegin();
                         DetourUpdateThread(GetCurrentThread());
