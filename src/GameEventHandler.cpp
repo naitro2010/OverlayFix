@@ -15,7 +15,7 @@
 #define DISMEMBER_CRASH_FIX_ALPHA
 #define STEAMDECK_CRASH_FIX
 #define SKSE_COSAVE_STACK_WORKAROUND
-#define PARALLEL_MORPH_WORKAROUND
+#define MORPHCACHE_SHRINK_WORKAROUND
 static bool do_reverse = false;
 static bool print_flags = true;
 static bool overlay_culling_fix = true;
@@ -47,18 +47,17 @@ static void CoSaveDropStacksBypass(void*) {
     return;
 }
 #ifdef VR_ESL_SUPPORT
-static auto LookupFormSKEEVRAddr = (RE::TESForm* (*)(RE::FormID)) 0x0;
+static auto LookupFormSKEEVRAddr = (RE::TESForm * (*) (RE::FormID)) 0x0;
 static RE::TESForm* LookupFormSKEEVR(RE::FormID id) {
     if (auto data_handler = RE::TESDataHandler::GetSingleton()) {
         if ((id & 0xFF000000) == 0xFE000000) {
-            if (auto mod_file = data_handler->LookupLoadedLightModByIndex((uint16_t)((id & 0xFFF000) >> 12))) {
+            if (auto mod_file = data_handler->LookupLoadedLightModByIndex((uint16_t) ((id & 0xFFF000) >> 12))) {
                 return data_handler->LookupForm(data_handler->LookupFormIDRaw(id, mod_file->fileName), mod_file->fileName);
             }
         } else {
             if (auto mod_file = data_handler->LookupLoadedModByIndex(id >> 24)) {
                 return data_handler->LookupForm(data_handler->LookupFormIDRaw(id, mod_file->fileName), mod_file->fileName);
             }
-            
         }
     }
     return nullptr;
@@ -255,6 +254,7 @@ namespace plugin {
                                       RE::BGSTextureSet* param_6) = (void (*)(void* inter, const char* param_2, const char* param_3,
                                                                               RE::TESObjectREFR* param_4, RE::BSGeometry* geo,
                                                                               RE::NiNode* param_5, RE::BGSTextureSet* param_6)) 0x0;
+
     static void (*UpdateMorphsHook)(void*, void*, void*) = (void (*)(void*, void*, void*)) 0x0;
     static void (*DeepCopyDetour)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
                                   uint64_t param_4) = (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
@@ -324,6 +324,7 @@ namespace plugin {
         }*/
         OverlayHook2(inter, param_2, param_3, param_4, param_5, param_6);
     }
+#ifdef PARALLEL_MORPH_WORKAROUND
     std::recursive_mutex update_morphs_mutex;
     static void UpdateMorphsHook_fn(void* arg1, void* arg2, void* arg3) {
         {
@@ -331,6 +332,30 @@ namespace plugin {
             UpdateMorphsHook(arg1, arg2, arg3);
         }
     }
+#endif
+#ifdef MORPHCACHE_SHRINK_WORKAROUND
+    static void (*CacheShrinkHook)(void*) = (void (*)(void*)) 0x0;
+    static void (*CacheClearHook)(void*) = (void (*)(void*)) 0x0;
+    static uintptr_t Morph_vtable = 0x0;
+    static void CacheShrinkHook_fn(void* morphCache) {
+        uintptr_t cache_ptr = (uintptr_t) morphCache;
+        uintptr_t limit_ptr = cache_ptr + 0x48;
+        uintptr_t current_ptr = cache_ptr + 0x50;
+        uintptr_t interface_ptr = cache_ptr - 0x58;
+        //logger::info("Shrink Morph Cache was called");
+        if (morphCache != nullptr) {
+            if (*(uintptr_t*)interface_ptr != Morph_vtable) {
+                logger::info("Incorrect interface for morphs, not clearing");
+            } else {
+                //CacheClearHook((void*) interface_ptr);
+                if (*(uint64_t*) current_ptr >= *(uint64_t*) limit_ptr) {
+                    logger::info("Clearing Morph Cache to prevent crash");
+                    CacheClearHook((void*) interface_ptr);
+                }
+            }
+        }
+    }
+#endif
     static void InstallOverlayHook_fn(void* inter, const char* param_2, const char* param_3, RE::TESObjectREFR* param_4,
                                       RE::BSGeometry* geo, RE::NiNode* param_5, RE::BGSTextureSet* param_6) {
         RE::BSFixedString geometry_node_name(param_2);
@@ -488,6 +513,18 @@ namespace plugin {
                     DetourTransactionCommit();
                     logger::info("SKEE64 1170 parallel morph workaround applied");
 #endif
+#ifdef MORPHCACHE_SHRINK_WORKAROUND
+                    CacheShrinkHook = (void (*)(void*))((uint64_t) skee64_info.lpBaseOfDll + 0x1d280);
+                    CacheClearHook = (void (*)(void*))((uint64_t) skee64_info.lpBaseOfDll + 0x18c30);
+                    Morph_vtable=((uintptr_t) skee64_info.lpBaseOfDll + 0x1df598);
+                    logger::info("SKEE64 1170 morphcache shrink workaround applying");
+                    DetourTransactionBegin();
+                    DetourUpdateThread(GetCurrentThread());
+                    DetourAttach(&(PVOID&) CacheShrinkHook, &CacheShrinkHook_fn);
+                    DetourTransactionCommit();
+                    logger::info("SKEE64 1170 morphcache shrink workaround applied");
+#endif
+
                     if (skip_load == true) {
                         uintptr_t skip_load_addr = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0xa7a70);
                         REL::safe_write(skip_load_addr, (uint8_t*) "\x48\xe9", 2);
@@ -516,6 +553,17 @@ namespace plugin {
                         DetourAttach(&(PVOID&) UpdateMorphsHook, &UpdateMorphsHook_fn);
                         DetourTransactionCommit();
                         logger::info("SKEE64 1597 parallel morph workaround applied");
+#endif
+#ifdef MORPHCACHE_SHRINK_WORKAROUND
+                        CacheShrinkHook = (void (*)(void*))((uint64_t) skee64_info.lpBaseOfDll + 0x8c10);
+                        CacheClearHook = (void (*)(void*))((uint64_t) skee64_info.lpBaseOfDll + 0x5340);
+                        Morph_vtable = ((uintptr_t) skee64_info.lpBaseOfDll + 0x173ec8);
+                        logger::info("SKEE64 1597 morphcache shrink workaround applying");
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) CacheShrinkHook, &CacheShrinkHook_fn);
+                        DetourTransactionCommit();
+                        logger::info("SKEE64 1597 morphcache shrink workaround applied");
 #endif
 #ifdef CRASH_FIX_ALPHA
                         skin_vtable = (uint64_t) REL::Offset(0x176a0a0).address();
@@ -601,7 +649,7 @@ namespace plugin {
 #endif
 #ifdef VR_ESL_SUPPORT
                     if (vr_esl == true) {
-                        void** lookupform_addr = (void**)((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1c7c80);
+                        void** lookupform_addr = (void**) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1c7c80);
                         lookupform_addr[0] = LookupFormSKEEVR;
                         logger::info("SKEEVR extra ESL patches applied");
                     }
@@ -643,12 +691,11 @@ namespace plugin {
 #endif
 #ifdef VR_ESL_SUPPORT
                     if (vr_esl == true) {
-                        void **lookupform_addr=(void**)((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1c7c80);
+                        void** lookupform_addr = (void**) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1c7c80);
                         lookupform_addr[0] = LookupFormSKEEVR;
                         logger::info("SKEEVR extra ESL patches applied");
                     }
-                   
-                    
+
 #endif
                     logger::info("SKEE64 VR patched");
 
