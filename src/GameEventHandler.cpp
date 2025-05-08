@@ -344,7 +344,7 @@ namespace plugin {
         uintptr_t interface_ptr = cache_ptr - 0x58;
         //logger::info("Shrink Morph Cache was called");
         if (morphCache != nullptr) {
-            if (*(uintptr_t*)interface_ptr != Morph_vtable) {
+            if (*(uintptr_t*) interface_ptr != Morph_vtable) {
                 logger::info("Incorrect interface for morphs, not clearing");
             } else {
                 //CacheClearHook((void*) interface_ptr);
@@ -516,7 +516,7 @@ namespace plugin {
 #ifdef MORPHCACHE_SHRINK_WORKAROUND
                     CacheShrinkHook = (void (*)(void*))((uint64_t) skee64_info.lpBaseOfDll + 0x1d280);
                     CacheClearHook = (void (*)(void*))((uint64_t) skee64_info.lpBaseOfDll + 0x18c30);
-                    Morph_vtable=((uintptr_t) skee64_info.lpBaseOfDll + 0x1df598);
+                    Morph_vtable = ((uintptr_t) skee64_info.lpBaseOfDll + 0x1df598);
                     logger::info("SKEE64 1170 morphcache shrink workaround applying");
                     DetourTransactionBegin();
                     DetourUpdateThread(GetCurrentThread());
@@ -531,6 +531,69 @@ namespace plugin {
                         logger::info("SKEE64 1170 skipping SKEE co-save loading to fix corrupted save.");
                     }
                     logger::info("SKEE64 patched");
+                } else if ((skee64_info.SizeOfImage >= 0x1787b8 + 7) &&
+                           memcmp("BODYTRI", (void*) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1787b8), 7) == 0) {
+                           uintptr_t patch0 = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1be78);
+                           uintptr_t patch1 = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1be8d);
+                           uintptr_t patch2 = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1be98);
+                           uintptr_t patch3 = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x84e8);
+                           uintptr_t patch4 = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x84fa);
+                           REL::safe_write(patch0, (uint8_t*) "\x8b\xca\x90\x90", 4);
+                           REL::safe_write(patch1, (uint8_t*) "\x90\x90\x90\x90\x90\x90\x90\x90", 8);
+                           REL::safe_write(patch2, (uint8_t*) "\x90\x90\x90\x90\x90\x90\x90\x90", 8);
+                           REL::safe_write(patch3, (uint8_t*) "\x8b\xd1\x90\x90", 4);
+                           REL::safe_write(patch4, (uint8_t*) "\x90\x90", 2);
+                           auto version = REL::Module::get().version();
+                           if (version == REL::Version(1, 5, 97, 0)) {
+#ifdef PARALLEL_MORPH_WORKAROUND
+                               logger::info("SKEE64 UBE2 parallel morph workaround applying");
+                               UpdateMorphsHook = (void (*)(void*, void*, void*))((uint64_t) skee64_info.lpBaseOfDll + 0x94b0);
+                               DetourTransactionBegin();
+                               DetourUpdateThread(GetCurrentThread());
+                               DetourAttach(&(PVOID&) UpdateMorphsHook, &UpdateMorphsHook_fn);
+                               DetourTransactionCommit();
+                               logger::info("SKEE64 UBE2 parallel morph workaround applied");
+#endif
+#ifdef MORPHCACHE_SHRINK_WORKAROUND
+                               CacheShrinkHook = (void (*)(void*))((uint64_t) skee64_info.lpBaseOfDll + 0x9a70);
+                               CacheClearHook = (void (*)(void*))((uint64_t) skee64_info.lpBaseOfDll + 0x6200);
+                               Morph_vtable = ((uintptr_t) skee64_info.lpBaseOfDll + 0x173ec8);
+                               logger::info("SKEE64 UBE2 morphcache shrink workaround applying");
+                               DetourTransactionBegin();
+                               DetourUpdateThread(GetCurrentThread());
+                               DetourAttach(&(PVOID&) CacheShrinkHook, &CacheShrinkHook_fn);
+                               DetourTransactionCommit();
+                               logger::info("SKEE64 UBE2 morphcache shrink workaround applied");
+#endif
+#ifdef CRASH_FIX_ALPHA
+                               skin_vtable = (uint64_t) REL::Offset(0x176a0a0).address();
+
+                               DeepCopyDetour =
+                                   (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3, uint64_t param_4)) REL::Offset(0xc529a0)
+                                       .address();
+                               DetourTransactionBegin();
+                               DetourUpdateThread(GetCurrentThread());
+                               DetourAttach(&(PVOID&) DeepCopyDetour, &DeepCopy_fn);
+                               DetourTransactionCommit();
+                               logger::info("SKEE64 UBE2 crash fix 1 applied");
+#endif
+#ifdef DISMEMBER_CRASH_FIX_ALPHA
+                               InstallOverlayHook = (void (*)(void* inter, const char* param_2, const char* param_3,
+                                                              RE::TESObjectREFR* param_4, RE::BSGeometry* geo, RE::NiNode* param_5,
+                                                              RE::BGSTextureSet* param_6))((uint64_t) skee64_info.lpBaseOfDll + 0x83160);
+                               DetourTransactionBegin();
+                               DetourUpdateThread(GetCurrentThread());
+                               DetourAttach(&(PVOID&) InstallOverlayHook, &InstallOverlayHook_fn);
+                               DetourTransactionCommit();
+                               logger::info("SKEE64 UBE2 crash fix 2 applied");
+#endif 
+                               if (skip_load == true) {
+                                   uintptr_t skip_load_addr = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x514ea);
+                                   REL::safe_write(skip_load_addr, (uint8_t*) "\x48\xe9", 2);
+                                   logger::info("SKEE64 UBE2 skipping SKEE co-save loading to fix corrupted save.");
+                               }
+                           }
+                    logger::info("SKEE64 UBE2 patched");
                 } else if ((skee64_info.SizeOfImage >= 0x16b478 + 7) &&
                            memcmp("BODYTRI", (void*) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x16b478), 7) == 0) {
                     uintptr_t patch0 = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x18438);
