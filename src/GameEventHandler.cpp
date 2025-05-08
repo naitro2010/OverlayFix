@@ -678,18 +678,18 @@ namespace plugin {
                     DetourUpdateThread(GetCurrentThread());
                     DetourAttach(&(PVOID&) DeepCopyDetour, &DeepCopy_fn);
                     DetourTransactionCommit();
-                    logger::info("SKEE64 04194 crash fix 1 applied");
+                    logger::info("SKEE64 041914 crash fix 1 applied");
 #endif
 #ifdef MORPHCACHE_SHRINK_WORKAROUND
                     CacheShrinkHook = (void (*)(void*))((uint64_t) skee64_info.lpBaseOfDll + 0xc360);
                     CacheClearHook = (void (*)(void*))((uint64_t) skee64_info.lpBaseOfDll + 0x89f0);
                     Morph_vtable = ((uintptr_t) skee64_info.lpBaseOfDll + 0x184b80);
-                    logger::info("SKEE64 04194 morphcache shrink workaround applying");
+                    logger::info("SKEE64 041914 morphcache shrink workaround applying");
                     DetourTransactionBegin();
                     DetourUpdateThread(GetCurrentThread());
                     DetourAttach(&(PVOID&) CacheShrinkHook, &CacheShrinkHook_fn);
                     DetourTransactionCommit();
-                    logger::info("SKEE64 04194 morphcache shrink workaround applied");
+                    logger::info("SKEE64 041914 morphcache shrink workaround applied");
 #endif
 #ifdef DISMEMBER_CRASH_FIX_ALPHA
                     InstallOverlayHook =
@@ -699,14 +699,14 @@ namespace plugin {
                     DetourUpdateThread(GetCurrentThread());
                     DetourAttach(&(PVOID&) InstallOverlayHook, &InstallOverlayHook_fn);
                     DetourTransactionCommit();
-                    logger::info("SKEE64 04194 crash fix 2 applied");
+                    logger::info("SKEE64 041914 crash fix 2 applied");
 #endif
                     if (skip_load == true) {
                         uintptr_t skip_load_addr = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x57d0c);
                         REL::safe_write(skip_load_addr, (uint8_t*) "\x48\xe9", 2);
-                        logger::info("SKEE64 04194 skipping SKEE co-save loading to fix corrupted save.");
+                        logger::info("SKEE64 041914 skipping SKEE co-save loading to fix corrupted save.");
                     }
-                    logger::info("SKEE64 04194 patched");
+                    logger::info("SKEE64 041914 patched");
                 } else if ((skee64_info.SizeOfImage >= 0x178b18 + 7) &&
                            memcmp("BODYTRI", (void*) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x178b18), 7) == 0) {
                     // unofficial 1179 GOG patch version
