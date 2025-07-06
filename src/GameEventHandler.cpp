@@ -16,6 +16,7 @@
 #define STEAMDECK_CRASH_FIX
 #define SKSE_COSAVE_STACK_WORKAROUND
 #define MORPHCACHE_SHRINK_WORKAROUND
+#define ANIMATION_WEAPON_FIX
 static bool do_reverse = false;
 static bool print_flags = true;
 static bool overlay_culling_fix = true;
@@ -333,6 +334,25 @@ namespace plugin {
         }
     }
 #endif
+#ifdef ANIMATION_WEAPON_FIX
+    static auto SendAnimationEventOriginal =
+        (void (*)(uint64_t arg0, uint64_t arg1, uint64_t arg2, RE::Actor* arg3, uint64_t arg4)) nullptr;
+    void SendAnimationEventDetour(uint64_t arg0, uint64_t arg1, uint64_t arg2, RE::Actor* arg3, uint64_t arg4) {
+        if (arg3 != nullptr) 
+        {
+            if (RE::Actor* actor = arg3->As<RE::Actor>()) {
+                actor->AsActorState()->actorState2.weaponState = RE::WEAPON_STATE::kSheathed;
+            }
+        }        
+        SendAnimationEventOriginal(arg0, arg1, arg2, arg3, arg4);
+        if (arg3 != nullptr) 
+        {
+            if (RE::Actor* actor = arg3->As<RE::Actor>()) {
+                actor->AsActorState()->actorState2.weaponState = RE::WEAPON_STATE::kSheathed;
+            }
+        }
+    }
+#endif
 #ifdef MORPHCACHE_SHRINK_WORKAROUND
     static void (*CacheShrinkHook)(void*) = (void (*)(void*)) 0x0;
     static void (*CacheClearHook)(void*) = (void (*)(void*)) 0x0;
@@ -408,6 +428,7 @@ namespace plugin {
     static bool save_danger = false;
     static bool skip_load = false;
     static bool vr_esl = true;
+    static bool animation_weapon_fix = true;
     void GameEventHandler::onPostPostLoad() {
         mINI::INIFile file("Data\\skse\\plugins\\OverlayFix.ini");
         mINI::INIStructure ini;
@@ -417,6 +438,7 @@ namespace plugin {
             ini["OverlayFix"]["nocull"] = "default";
             ini["OverlayFix"]["savedanger"] = "default";
             ini["OverlayFix"]["vresl"] = "default";
+            ini["OverlayFix"]["animation_weapon_fix"] = "default";
         } else {
             file.generate(ini);
             if (ini["OverlayFix"]["reverse"] == "true") {
@@ -439,6 +461,10 @@ namespace plugin {
                 vr_esl = true;
             } else if (ini["OverlayFix"]["vresl"] == "false") {
                 vr_esl = false;
+            }
+            if (ini["OverlayFix"]["animation_weapon_fix"] == "false") 
+            {
+                animation_weapon_fix = false;
             }
         }
         if (HMODULE handle = GetModuleHandleA("skee64.dll")) {
@@ -849,20 +875,39 @@ namespace plugin {
         }
 #endif
 #ifdef STEAMDECK_CRASH_FIX
-        auto version = REL::Module::get().version();
-        if (version == REL::Version(1, 6, 1170, 0)) {
-            logger::info("Patching Steamdeck keyboard crash");
-            SteamdeckVirtualKeyboardCallback = (void (*)(uint64_t param_1, char* param_2)) REL::Offset(0x1531c60).address();
-            SteamdeckVirtualKeyboardCallback2 = (void (*)(uint64_t param_1, char* param_2)) REL::Offset(0x1531cd0).address();
-            DetourTransactionBegin();
-            DetourUpdateThread(GetCurrentThread());
-            DetourAttach(&(PVOID&) SteamdeckVirtualKeyboardCallback, &VirtualKeyboard_fn);
-            DetourTransactionCommit();
-            DetourTransactionBegin();
-            DetourUpdateThread(GetCurrentThread());
-            DetourAttach(&(PVOID&) SteamdeckVirtualKeyboardCallback2, &VirtualKeyboard2_fn);
-            DetourTransactionCommit();
-            logger::info("completed patching Steamdeck keyboard crash");
+        {
+            auto version = REL::Module::get().version();
+            if (version == REL::Version(1, 6, 1170, 0)) {
+                logger::info("Patching Steamdeck keyboard crash");
+                SteamdeckVirtualKeyboardCallback = (void (*)(uint64_t param_1, char* param_2)) REL::Offset(0x1531c60).address();
+                SteamdeckVirtualKeyboardCallback2 = (void (*)(uint64_t param_1, char* param_2)) REL::Offset(0x1531cd0).address();
+                DetourTransactionBegin();
+                DetourUpdateThread(GetCurrentThread());
+                DetourAttach(&(PVOID&) SteamdeckVirtualKeyboardCallback, &VirtualKeyboard_fn);
+                DetourTransactionCommit();
+                DetourTransactionBegin();
+                DetourUpdateThread(GetCurrentThread());
+                DetourAttach(&(PVOID&) SteamdeckVirtualKeyboardCallback2, &VirtualKeyboard2_fn);
+                DetourTransactionCommit();
+                logger::info("completed patching Steamdeck keyboard crash");
+            }
+        }
+#endif
+#ifdef ANIMATION_WEAPON_FIX
+        {
+            auto version = REL::Module::get().version();
+            if (version == REL::Version(1, 6, 1170, 0)) {
+                if (animation_weapon_fix == true) {
+                    SendAnimationEventOriginal = (void (*)(uint64_t arg0, uint64_t arg1, uint64_t arg2, RE::Actor* arg3,
+                                                           uint64_t arg4)) REL::RelocationID(0, 55380, 0)
+                                                     .address();
+                    DetourTransactionBegin();
+                    DetourUpdateThread(GetCurrentThread());
+                    DetourAttach(&(PVOID&) SendAnimationEventOriginal, &SendAnimationEventDetour);
+                    DetourTransactionCommit();
+                    logger::info("animation weapon fix applied");
+                }
+            }
         }
 #endif
         logger::info("onPostPostLoad()");
