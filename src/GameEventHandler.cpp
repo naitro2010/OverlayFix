@@ -16,6 +16,10 @@
 #define STEAMDECK_CRASH_FIX
 #define SKSE_COSAVE_STACK_WORKAROUND
 #define MORPHCACHE_SHRINK_WORKAROUND
+#define SAMRIM_NAME_PATCH
+#ifdef SAMRIM_NAME_PATCH
+#include "thirdparty/DDNG_API.h"
+#endif
 static bool do_reverse = false;
 static bool print_flags = true;
 static bool overlay_culling_fix = true;
@@ -222,9 +226,26 @@ namespace plugin {
     }
     std::recursive_mutex g_name_mutex;
     std::map<RE::FormID, std::string> ExtraNames;
+    #ifdef SAMRIM_NAME_PATCH
+    bool ddng_loaded = false;
     const char* GetFullNameHooked(RE::TESForm* form) {
         std::lock_guard<std::recursive_mutex> lock(g_name_mutex);
         if (form != nullptr) {
+            if (auto armor=form->As<RE::TESObjectARMO>()) {
+                if (!ddng_loaded) {
+                    if (DeviousDevicesAPI::LoadAPI()) {
+                        ddng_loaded = true;
+                    }
+                }
+                if (ddng_loaded) {
+                    if (auto inventory_armor=DeviousDevicesAPI::g_API->GetDeviceInventory(armor)) {
+                        if (inventory_armor->GetName() != nullptr && inventory_armor->GetName()[0] != 0x0) {
+                            return inventory_armor->GetName();
+                        }
+                    }
+                }
+
+            }
             if (form->GetName() != nullptr && form->GetName()[0] != 0x0) {
                 return form->GetName();
             } else {
@@ -238,6 +259,7 @@ namespace plugin {
         }
         return "";
     }
+    #endif
     static SKEENullFix* nullSkeletonFix;
     static void (*SteamdeckVirtualKeyboardCallback)(uint64_t param_1, char* param_2) = (void (*)(uint64_t param_1, char* param_2)) 0x0;
     static void (*SteamdeckVirtualKeyboardCallback2)(uint64_t param_1, char* param_2) = (void (*)(uint64_t param_1, char* param_2)) 0x0;
@@ -810,14 +832,20 @@ namespace plugin {
             GetModuleInformation(GetCurrentProcess(), handlesam, &samrim_info, sizeof(samrim_info));
             uint32_t expected = 0;
             if (samrim_loaded.compare_exchange_strong(expected, 1) == true && expected == 0) {
-                if ((samrim_info.SizeOfImage >= 0x1d2ac8 + 10) &&
-                    memcmp("No dyeable", (void*) ((uintptr_t) samrim_info.lpBaseOfDll + (uintptr_t) 0x1d2ac8), 10) == 0) {
-                    uintptr_t patch0 = ((uintptr_t) samrim_info.lpBaseOfDll + (uintptr_t) 0x12a320);
-                    Code c0((uint64_t) &GetFullNameHooked);
-                    const uint8_t* hook0 = c0.getCode();
-                    REL::safe_write(patch0, hook0, c0.getSize());
-                    logger::info("SAM patched");
+                std::vector<unsigned char> get_full_name_prefix = {0x48, 0x83, 0xec, 0x28, 0x0f, 0xb6, 0x41, 0x1a, 0x4c, 0x8b,
+                                                                   0xc1, 0x83, 0xc0, 0xf6, 0x83, 0xf8, 0x7b, 0x77, 0x72};
+                std::vector<unsigned char> samrim_data((unsigned char*) samrim_info.lpBaseOfDll, (unsigned char*) samrim_info.lpBaseOfDll+samrim_info.SizeOfImage);
+                auto itfound = std::search(samrim_data.begin(), samrim_data.end(), get_full_name_prefix.begin(), get_full_name_prefix.end());
+                if (itfound != samrim_data.end()) {
+                    if ((samrim_info.SizeOfImage >= 0x1000)) {
+                        uintptr_t patch0 = ((uintptr_t) samrim_info.lpBaseOfDll + (uintptr_t) (itfound-samrim_data.begin()));
+                        Code c0((uint64_t) &GetFullNameHooked);
+                        const uint8_t* hook0 = c0.getCode();
+                        REL::safe_write(patch0, hook0, c0.getSize());
+                        logger::info("SAM patched");
+                    }
                 }
+                
             }
         }
 #endif
