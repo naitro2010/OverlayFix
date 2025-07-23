@@ -417,30 +417,30 @@ namespace plugin {
             ini["OverlayFix"]["nocull"] = "default";
             ini["OverlayFix"]["savedanger"] = "default";
             ini["OverlayFix"]["vresl"] = "default";
-        } else {
-            file.generate(ini);
-            if (ini["OverlayFix"]["reverse"] == "true") {
-                do_reverse = true;
-            } else if (ini["OverlayFix"]["reverse"] == "false") {
-                do_reverse = false;
-            }
-            if (ini["OverlayFix"]["skipload"] == "true") {
-                skip_load = true;
-            }
-            if (ini["OverlayFix"]["nocull"] == "true") {
-                overlay_culling_fix = true;
-            } else if (ini["OverlayFix"]["nocull"] == "false") {
-                overlay_culling_fix = false;
-            }
-            if (ini["OverlayFix"]["savedanger"] == "true") {
-                save_danger = true;
-            }
-            if (ini["OverlayFix"]["vresl"] == "true") {
-                vr_esl = true;
-            } else if (ini["OverlayFix"]["vresl"] == "false") {
-                vr_esl = false;
-            }
         }
+        file.generate(ini);
+        if (ini["OverlayFix"]["reverse"] == "true") {
+            do_reverse = true;
+        } else if (ini["OverlayFix"]["reverse"] == "false") {
+            do_reverse = false;
+        }
+        if (ini["OverlayFix"]["skipload"] == "true") {
+            skip_load = true;
+        }
+        if (ini["OverlayFix"]["nocull"] == "true") {
+            overlay_culling_fix = true;
+        } else if (ini["OverlayFix"]["nocull"] == "false") {
+            overlay_culling_fix = false;
+        }
+        if (ini["OverlayFix"]["savedanger"] == "true") {
+            save_danger = true;
+        }
+        if (ini["OverlayFix"]["vresl"] == "true") {
+            vr_esl = true;
+        } else if (ini["OverlayFix"]["vresl"] == "false") {
+            vr_esl = false;
+        }
+        
         if (HMODULE handle = GetModuleHandleA("skee64.dll")) {
             MODULEINFO skee64_info;
             GetModuleInformation(GetCurrentProcess(), handle, &skee64_info, sizeof(skee64_info));
