@@ -412,18 +412,14 @@ namespace plugin {
         mINI::INIFile file("Data\\skse\\plugins\\OverlayFix.ini");
         mINI::INIStructure ini;
         if (file.read(ini) == false) {
-            ini["OverlayFix"]["reverse"] = "default";
+            ini["OverlayFix"]["reverse"] = "false";
             ini["OverlayFix"]["skipload"] = "false";
             ini["OverlayFix"]["nocull"] = "default";
             ini["OverlayFix"]["savedanger"] = "default";
             ini["OverlayFix"]["vresl"] = "default";
         }
         file.generate(ini);
-        if (ini["OverlayFix"]["reverse"] == "true") {
-            do_reverse = true;
-        } else if (ini["OverlayFix"]["reverse"] == "false") {
-            do_reverse = false;
-        }
+        do_reverse=false;
         if (ini["OverlayFix"]["skipload"] == "true") {
             skip_load = true;
         }
@@ -465,9 +461,6 @@ namespace plugin {
                     const uint8_t* nullSkeletonCode = nullSkeletonFix->getCode();
                     REL::safe_write(((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1e21d8), (uint8_t*) (&nullSkeletonCode),
                                     sizeof(uint64_t));
-                    if (ini["OverlayFix"]["reverse"] == "default") {
-                        do_reverse = true;
-                    }
 #ifdef CRASH_FIX_ALPHA
                     
                     auto deepcopy_addr = (uintptr_t) REL::Offset(0xd18080).address();
@@ -720,9 +713,7 @@ namespace plugin {
                     REL::safe_write(patch2, (uint8_t*) "\x90\x90\x90\x90\x90\x90\x90\x90", 8);
                     REL::safe_write(patch3, (uint8_t*) "\x8b\xd1\x90\x90", 4);
                     REL::safe_write(patch4, (uint8_t*) "\x90\x90", 2);
-                    if (ini["OverlayFix"]["reverse"] == "default") {
-                        do_reverse = true;
-                    }
+                    
                     logger::info("SKEE64 U1179 GOG patched");
                 } else if ((skee64_info.SizeOfImage >= 0x16bce8 + 7) &&
                            memcmp("BODYTRI", (void*) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x16bce8), 7) == 0) {
