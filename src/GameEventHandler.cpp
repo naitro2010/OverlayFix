@@ -825,6 +825,31 @@ namespace plugin {
 #endif
                     logger::info("SKEE64 VR patched");
 
+                } else if ((skee64_info.SizeOfImage >= 0x172cc8 + 7) &&
+                           memcmp("BODYTRI", (void*) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x172cc8), 7) == 0) {
+                    uintptr_t patch0 = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x7f88);
+                    uintptr_t patch1 = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x7f9d);
+                    uintptr_t patch2 = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x7fa8);
+                    uintptr_t patch3 = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x71a8);
+                    uintptr_t patch4 = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x71ba);
+                    REL::safe_write(patch0, (uint8_t*) "\x8b\xca\x90\x90", 4);
+                    REL::safe_write(patch1, (uint8_t*) "\x90\x90\x90\x90\x90\x90\x90\x90", 8);
+                    REL::safe_write(patch2, (uint8_t*) "\x90\x90\x90\x90\x90\x90\x90\x90", 8);
+                    REL::safe_write(patch3, (uint8_t*) "\x8b\xd1\x90\x90", 4);
+                    REL::safe_write(patch4, (uint8_t*) "\x90\x90", 2);
+#ifdef DISMEMBER_CRASH_FIX_ALPHA
+                    logger::info("SKEEVR 0p5 InstallOverlay patching");
+                    InstallOverlayHook =
+                        (void (*)(void* inter, const char* param_2, const char* param_3, RE::TESObjectREFR* param_4, RE::BSGeometry* geo,
+                                  RE::NiNode* param_5, RE::BGSTextureSet* param_6))((uint64_t) skee64_info.lpBaseOfDll + 0xdf0d0);
+                    DetourTransactionBegin();
+                    DetourUpdateThread(GetCurrentThread());
+                    DetourAttach(&(PVOID&) InstallOverlayHook, &InstallOverlayHook_fn);
+                    DetourTransactionCommit();
+                    logger::info("SKEEVR 0p5 InstallOverlay patched");
+#endif
+                    logger::info("SKEEVR 0p5 patched");
+
                 } else {
                     logger::error("Wrong SKEE64 VR version");
                 }
