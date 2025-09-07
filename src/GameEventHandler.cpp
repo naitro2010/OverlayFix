@@ -557,7 +557,88 @@ namespace plugin {
                         logger::info("SKEE64 1170 skipping SKEE co-save loading to fix corrupted save.");
                     }
                     logger::info("SKEE64 patched");
-                } else if ((skee64_info.SizeOfImage >= 0x1787b8 + 7) &&
+                }                
+                else if ((skee64_info.SizeOfImage >= 0x1d8568 + 7) &&
+                           memcmp("BODYTRI", (void*) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1d8568), 7) == 0) 
+                {
+                    logger::info("Found SKEE64 tags build");
+                    uintptr_t patch0 = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0xc70c8);
+                    uintptr_t patch1 = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0xc70dd);
+                    uintptr_t patch2 = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0xc70e8);
+                    REL::safe_write(patch0, (uint8_t*) "\x8b\xc1\x90\x90", 4);
+                    REL::safe_write(patch1, (uint8_t*) "\x90\x90\x90\x90\x90\x90\x90\x90", 8);
+                    REL::safe_write(patch2, (uint8_t*) "\x90\x90\x90\x90\x90\x90\x90", 7);
+                    nullSkeletonFix = new SKEENullFix((uint64_t) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0xd95f0));
+                    const uint8_t* nullSkeletonCode = nullSkeletonFix->getCode();
+                    REL::safe_write(((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1e74a8), (uint8_t*) (&nullSkeletonCode),
+                                    sizeof(uint64_t));
+                    if (ini["OverlayFix"]["reverse"] == "default") {
+                        do_reverse = true;
+                    }
+#ifdef CRASH_FIX_ALPHA
+
+                    auto deepcopy_addr = (uintptr_t) REL::Offset(0xd18080).address();
+                    DeepCopyDetour =
+                        (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3, uint64_t param_4)) REL::Offset(0xd18080).address();
+                    DetourTransactionBegin();
+                    DetourUpdateThread(GetCurrentThread());
+                    DetourAttach(&(PVOID&) DeepCopyDetour, &DeepCopy_fn);
+                    DetourTransactionCommit();
+#endif
+#ifdef DISMEMBER_CRASH_FIX_ALPHA
+                    if (OverlayHook == 0x0) {
+                        OverlayHook =
+                            (void (*)(void* inter, uint32_t param_2, uint32_t param_3, RE::TESObjectREFR* param_4, RE::NiNode* param_5,
+                                      RE::NiAVObject* param_6))((uint64_t) skee64_info.lpBaseOfDll + 0xd5b70);
+                        OverlayHook2 =
+                            (void (*)(void* inter, uint32_t param_2, uint32_t param_3, RE::TESObjectREFR* param_4, RE::NiNode* param_5,
+                                      RE::NiAVObject* param_6))((uint64_t) skee64_info.lpBaseOfDll + 0xd5cf6);
+                        InstallOverlayHook = (void (*)(void* inter, const char* param_2, const char* param_3, RE::TESObjectREFR* param_4,
+                                                       RE::BSGeometry* geo, RE::NiNode* param_5,
+                                                       RE::BGSTextureSet* param_6))((uint64_t) skee64_info.lpBaseOfDll + 0xd3da0);
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) InstallOverlayHook, &InstallOverlayHook_fn);
+                        DetourTransactionCommit();
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) OverlayHook, &OverlayHook_fn);
+                        DetourTransactionCommit();
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) OverlayHook2, &OverlayHook2_fn);
+                        DetourTransactionCommit();
+                    }
+
+#endif
+#ifdef PARALLEL_MORPH_WORKAROUND
+                    logger::info("SKEE64 Tags 1170  parallel morph workaround applying");
+                    UpdateMorphsHook = (void (*)(void*, void*, void*))((uint64_t) skee64_info.lpBaseOfDll + 0x168f0);
+                    DetourTransactionBegin();
+                    DetourUpdateThread(GetCurrentThread());
+                    DetourAttach(&(PVOID&) UpdateMorphsHook, &UpdateMorphsHook_fn);
+                    DetourTransactionCommit();
+                    logger::info("SKEE64 Tags 1170 parallel morph workaround applied");
+#endif
+#ifdef MORPHCACHE_SHRINK_WORKAROUND
+                    CacheShrinkHook = (void (*)(void*))((uint64_t) skee64_info.lpBaseOfDll + 0x1d1e0);
+                    CacheClearHook = (void (*)(void*))((uint64_t) skee64_info.lpBaseOfDll + 0x18d70);
+                    Morph_vtable = ((uintptr_t) skee64_info.lpBaseOfDll + 0x1e57d8);
+                    logger::info("SKEE64 Tags 1170 morphcache shrink workaround applying");
+                    DetourTransactionBegin();
+                    DetourUpdateThread(GetCurrentThread());
+                    DetourAttach(&(PVOID&) CacheShrinkHook, &CacheShrinkHook_fn);
+                    DetourTransactionCommit();
+                    logger::info("SKEE64 Tags 1170 morphcache shrink workaround applied");
+#endif
+
+                    if (skip_load == true) {
+                        uintptr_t skip_load_addr = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0xab340);
+                        REL::safe_write(skip_load_addr, (uint8_t*) "\x48\xe9", 2);
+                        logger::info("SKEE64 Tags 1170 skipping SKEE co-save loading to fix corrupted save.");
+                    }
+                    logger::info("SKEE64 Tags build patched");
+                 } else if ((skee64_info.SizeOfImage >= 0x1787b8 + 7) &&
                            memcmp("BODYTRI", (void*) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1787b8), 7) == 0) {
                     uintptr_t patch0 = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1be78);
                     uintptr_t patch1 = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1be8d);
