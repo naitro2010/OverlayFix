@@ -922,7 +922,7 @@ namespace plugin {
                     logger::info("SKEEVR 0p5 InstallOverlay patching");
                     InstallOverlayHook =
                         (void (*)(void* inter, const char* param_2, const char* param_3, RE::TESObjectREFR* param_4, RE::BSGeometry* geo,
-                                  RE::NiNode* param_5, RE::BGSTextureSet* param_6))((uint64_t) skee64_info.lpBaseOfDll + 0xdf0d0);
+                                  RE::NiNode* param_5, RE::BGSTextureSet* param_6))((uint64_t) skee64_info.lpBaseOfDll + 0x83b00);
                     DetourTransactionBegin();
                     DetourUpdateThread(GetCurrentThread());
                     DetourAttach(&(PVOID&) InstallOverlayHook, &InstallOverlayHook_fn);
