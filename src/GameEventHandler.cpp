@@ -16,6 +16,7 @@
 #define STEAMDECK_CRASH_FIX
 #define SKSE_COSAVE_STACK_WORKAROUND
 #define MORPHCACHE_SHRINK_WORKAROUND
+#define PARALLEL_MORPH_WORKAROUND
 #define SAMRIM_NAME_PATCH
 #ifdef SAMRIM_NAME_PATCH
 #include "thirdparty/DDNG_API.h"
@@ -120,7 +121,7 @@ namespace plugin {
                     sort_callback(RE::NiPointer(CurrentObject->parent), RE::NiPointer(CurrentObject), (uint32_t) index);
                 }
             }
-            
+
             RE::BSGeometry* geo = CurrentObject->AsGeometry();
             if (geo != nullptr) {
                 auto geodata = geo->GetGeometryRuntimeData();
@@ -147,7 +148,7 @@ namespace plugin {
                     sort_callback(RE::NiPointer(CurrentObject->parent), RE::NiPointer(CurrentObject), (uint32_t) index);
                 }
             }
-            
+
             RE::BSGeometry* geo = CurrentObject->AsGeometry();
             if (geo != nullptr) {
                 auto geodata = geo->GetGeometryRuntimeData();
@@ -165,7 +166,7 @@ namespace plugin {
     }
     class Update3DModelOverlayFix : public RE::BSTEventSink<SKSE::NiNodeUpdateEvent> {
         RE::BSEventNotifyControl ProcessEvent(const SKSE::NiNodeUpdateEvent* a_event,
-                                              RE::BSTEventSource<SKSE::NiNodeUpdateEvent>* a_eventSource) {
+                                                RE::BSTEventSource<SKSE::NiNodeUpdateEvent>* a_eventSource) {
             if (a_event && a_event->reference && a_event->reference->Is3DLoaded()) {
                 a_event->reference->IncRefCount();
                 std::map<RE::NiAVObject*, uint32_t> object_to_overlay_index_map;
@@ -230,25 +231,24 @@ namespace plugin {
     }
     std::recursive_mutex g_name_mutex;
     std::map<RE::FormID, std::string> ExtraNames;
-    #ifdef SAMRIM_NAME_PATCH
+#ifdef SAMRIM_NAME_PATCH
     bool ddng_loaded = false;
     const char* GetFullNameHooked(RE::TESForm* form) {
         std::lock_guard<std::recursive_mutex> lock(g_name_mutex);
         if (form != nullptr) {
-            if (auto armor=form->As<RE::TESObjectARMO>()) {
+            if (auto armor = form->As<RE::TESObjectARMO>()) {
                 if (!ddng_loaded) {
                     if (DeviousDevicesAPI::LoadAPI()) {
                         ddng_loaded = true;
                     }
                 }
                 if (ddng_loaded) {
-                    if (auto inventory_armor=DeviousDevicesAPI::g_API->GetDeviceInventory(armor)) {
+                    if (auto inventory_armor = DeviousDevicesAPI::g_API->GetDeviceInventory(armor)) {
                         if (inventory_armor->GetName() != nullptr && inventory_armor->GetName()[0] != 0x0) {
                             return inventory_armor->GetName();
                         }
                     }
                 }
-
             }
             if (form->GetName() != nullptr && form->GetName()[0] != 0x0) {
                 return form->GetName();
@@ -263,7 +263,7 @@ namespace plugin {
         }
         return "";
     }
-    #endif
+#endif
     static SKEENullFix* nullSkeletonFix;
     static void (*SteamdeckVirtualKeyboardCallback)(uint64_t param_1, char* param_2) = (void (*)(uint64_t param_1, char* param_2)) 0x0;
     static void (*SteamdeckVirtualKeyboardCallback2)(uint64_t param_1, char* param_2) = (void (*)(uint64_t param_1, char* param_2)) 0x0;
@@ -285,7 +285,7 @@ namespace plugin {
     static void (*DeepCopyDetour)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
                                   uint64_t param_4) = (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
                                                                 uint64_t param_4)) 0x0;
-    
+
     static void DeepCopy_fn(uint64_t param_1, uint64_t* param_2, uint64_t param_3, uint64_t param_4) {
         if (param_1 == 0x0) {
             logger::info("Invalid DeepCopy, skipping copy");
@@ -350,11 +350,17 @@ namespace plugin {
         }*/
         OverlayHook2(inter, param_2, param_3, param_4, param_5, param_6);
     }
+    static bool PARALLEL_MORPH_FIX = true;
 #ifdef PARALLEL_MORPH_WORKAROUND
     std::recursive_mutex update_morphs_mutex;
     static void UpdateMorphsHook_fn(void* arg1, void* arg2, void* arg3) {
+        if (PARALLEL_MORPH_FIX)
         {
             std::lock_guard<std::recursive_mutex> l(update_morphs_mutex);
+            UpdateMorphsHook(arg1, arg2, arg3);
+        }
+        else 
+        {
             UpdateMorphsHook(arg1, arg2, arg3);
         }
     }
@@ -443,8 +449,12 @@ namespace plugin {
             ini["OverlayFix"]["nocull"] = "default";
             ini["OverlayFix"]["savedanger"] = "default";
             ini["OverlayFix"]["vresl"] = "default";
+            ini["OverlayFix"]["parallelmorphfix"] = "default";
         }
         file.generate(ini);
+        if (ini["OverlayFix"]["parallelmorphfix"] == "false") {
+            PARALLEL_MORPH_FIX = false;
+        }
         if (ini["OverlayFix"]["reverse"] == "true") {
             do_reverse = true;
         } else if (ini["OverlayFix"]["reverse"] == "false") {
@@ -466,7 +476,7 @@ namespace plugin {
         } else if (ini["OverlayFix"]["vresl"] == "false") {
             vr_esl = false;
         }
-        
+
         if (HMODULE handle = GetModuleHandleA("skee64.dll")) {
             MODULEINFO skee64_info;
             GetModuleInformation(GetCurrentProcess(), handle, &skee64_info, sizeof(skee64_info));
@@ -495,7 +505,7 @@ namespace plugin {
                         do_reverse = true;
                     }
 #ifdef CRASH_FIX_ALPHA
-                    
+
                     auto deepcopy_addr = (uintptr_t) REL::Offset(0xd18080).address();
                     DeepCopyDetour =
                         (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3, uint64_t param_4)) REL::Offset(0xd18080).address();
@@ -557,10 +567,8 @@ namespace plugin {
                         logger::info("SKEE64 1170 skipping SKEE co-save loading to fix corrupted save.");
                     }
                     logger::info("SKEE64 patched");
-                }                
-                else if ((skee64_info.SizeOfImage >= 0x1d8568 + 7) &&
-                           memcmp("BODYTRI", (void*) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1d8568), 7) == 0) 
-                {
+                } else if ((skee64_info.SizeOfImage >= 0x1d8568 + 7) &&
+                           memcmp("BODYTRI", (void*) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1d8568), 7) == 0) {
                     logger::info("Found SKEE64 tags build");
                     uintptr_t patch0 = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0xc70c8);
                     uintptr_t patch1 = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0xc70dd);
@@ -638,7 +646,7 @@ namespace plugin {
                         logger::info("SKEE64 Tags 1170 skipping SKEE co-save loading to fix corrupted save.");
                     }
                     logger::info("SKEE64 Tags build patched");
-                 } else if ((skee64_info.SizeOfImage >= 0x1787b8 + 7) &&
+                } else if ((skee64_info.SizeOfImage >= 0x1787b8 + 7) &&
                            memcmp("BODYTRI", (void*) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1787b8), 7) == 0) {
                     uintptr_t patch0 = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1be78);
                     uintptr_t patch1 = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1be8d);
@@ -673,7 +681,6 @@ namespace plugin {
                         logger::info("SKEE64 UBE2 morphcache shrink workaround applied");
 #endif
 #ifdef CRASH_FIX_ALPHA
-                        
 
                         DeepCopyDetour =
                             (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3, uint64_t param_4)) REL::Offset(0xc529a0)
@@ -736,7 +743,6 @@ namespace plugin {
                         logger::info("SKEE64 1597 morphcache shrink workaround applied");
 #endif
 #ifdef CRASH_FIX_ALPHA
-                        
 
                         DeepCopyDetour =
                             (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3, uint64_t param_4)) REL::Offset(0xc529a0)
@@ -777,7 +783,6 @@ namespace plugin {
                     REL::safe_write(patch3, (uint8_t*) "\x8b\xd1\x90\x90", 4);
                     REL::safe_write(patch4, (uint8_t*) "\x90\x90", 2);
 #ifdef CRASH_FIX_ALPHA
-                    
 
                     DeepCopyDetour =
                         (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3, uint64_t param_4)) REL::Offset(0xc8ca90).address();
@@ -896,6 +901,15 @@ namespace plugin {
                     DetourTransactionCommit();
                     logger::info("SKEEVR InstallOverlay patched");
 #endif
+#ifdef PARALLEL_MORPH_WORKAROUND
+                    logger::info("SKEEVR parallel morph workaround applying");
+                    UpdateMorphsHook = (void (*)(void*, void*, void*))((uint64_t) skee64_info.lpBaseOfDll + 0x7540);
+                    DetourTransactionBegin();
+                    DetourUpdateThread(GetCurrentThread());
+                    DetourAttach(&(PVOID&) UpdateMorphsHook, &UpdateMorphsHook_fn);
+                    DetourTransactionCommit();
+                    logger::info("SKEEVR parallel morph workaround applied");
+#endif
 #ifdef VR_ESL_SUPPORT
                     if (vr_esl == true) {
                         void** lookupform_addr = (void**) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1c7c80);
@@ -929,6 +943,15 @@ namespace plugin {
                     DetourTransactionCommit();
                     logger::info("SKEEVR 0p5 InstallOverlay patched");
 #endif
+#ifdef PARALLEL_MORPH_WORKAROUND
+                    logger::info("SKEEVR 0p5 parallel morph workaround applying");
+                    UpdateMorphsHook = (void (*)(void*, void*, void*))((uint64_t) skee64_info.lpBaseOfDll + 0x80a0);
+                    DetourTransactionBegin();
+                    DetourUpdateThread(GetCurrentThread());
+                    DetourAttach(&(PVOID&) UpdateMorphsHook, &UpdateMorphsHook_fn);
+                    DetourTransactionCommit();
+                    logger::info("SKEEVR 0p5 parallel morph workaround applied");
+#endif
                     logger::info("SKEEVR 0p5 patched");
 
                 } else {
@@ -944,18 +967,19 @@ namespace plugin {
             if (samrim_loaded.compare_exchange_strong(expected, 1) == true && expected == 0) {
                 std::vector<unsigned char> get_full_name_prefix = {0x48, 0x83, 0xec, 0x28, 0x0f, 0xb6, 0x41, 0x1a, 0x4c, 0x8b,
                                                                    0xc1, 0x83, 0xc0, 0xf6, 0x83, 0xf8, 0x7b, 0x77, 0x72};
-                std::vector<unsigned char> samrim_data((unsigned char*) samrim_info.lpBaseOfDll, (unsigned char*) samrim_info.lpBaseOfDll+samrim_info.SizeOfImage);
-                auto itfound = std::search(samrim_data.begin(), samrim_data.end(), get_full_name_prefix.begin(), get_full_name_prefix.end());
+                std::vector<unsigned char> samrim_data((unsigned char*) samrim_info.lpBaseOfDll,
+                                                       (unsigned char*) samrim_info.lpBaseOfDll + samrim_info.SizeOfImage);
+                auto itfound =
+                    std::search(samrim_data.begin(), samrim_data.end(), get_full_name_prefix.begin(), get_full_name_prefix.end());
                 if (itfound != samrim_data.end()) {
                     if ((samrim_info.SizeOfImage >= 0x1000)) {
-                        uintptr_t patch0 = ((uintptr_t) samrim_info.lpBaseOfDll + (uintptr_t) (itfound-samrim_data.begin()));
+                        uintptr_t patch0 = ((uintptr_t) samrim_info.lpBaseOfDll + (uintptr_t) (itfound - samrim_data.begin()));
                         Code c0((uint64_t) &GetFullNameHooked);
                         const uint8_t* hook0 = c0.getCode();
                         REL::safe_write(patch0, hook0, c0.getSize());
                         logger::info("SAM patched");
                     }
                 }
-                
             }
         }
 #endif
