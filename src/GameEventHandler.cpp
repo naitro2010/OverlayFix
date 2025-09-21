@@ -165,62 +165,62 @@ namespace plugin {
         }
     }
     class Update3DModelOverlayFix : public RE::BSTEventSink<SKSE::NiNodeUpdateEvent> {
-        RE::BSEventNotifyControl ProcessEvent(const SKSE::NiNodeUpdateEvent* a_event,
-                                                RE::BSTEventSource<SKSE::NiNodeUpdateEvent>* a_eventSource) {
-            if (a_event && a_event->reference && a_event->reference->Is3DLoaded()) {
-                a_event->reference->IncRefCount();
-                std::map<RE::NiAVObject*, uint32_t> object_to_overlay_index_map;
-                std::map<RE::NiNode*, std::map<uint32_t, RE::NiAVObject*>> reverse_map;
-                auto reverse_map_ptr = &reverse_map;
-                auto oto_map_ptr = &object_to_overlay_index_map;
-                auto callback = [=](RE::NiPointer<RE::NiNode> parent, RE::NiPointer<RE::NiAVObject> obj, uint32_t index) {
-                    if (!reverse_map_ptr->contains(parent.get())) {
-                        std::map<uint32_t, RE::NiAVObject*> obj_map;
-                        reverse_map_ptr->insert_or_assign(parent.get(), obj_map);
-                    }
-                    if (parent.get() && obj.get()) {
-                        auto& m = reverse_map_ptr->at(parent.get());
-                        m.insert_or_assign(obj->parentIndex, obj.get());
-                        oto_map_ptr->insert_or_assign(obj.get(), index);
-                    }
-                };
-                std::function<void(RE::NiPointer<RE::NiNode>, RE::NiPointer<RE::NiAVObject>, uint32_t)> callback_fn = callback;
-                WalkOverlays(a_event->reference->GetCurrent3D(), false, callback_fn);
-                for (auto& node_pair: reverse_map) {
-                    std::map<RE::NiAVObject*, uint32_t> original_indices;
-                    std::map<RE::NiAVObject*, uint32_t> new_indices;
-                    for (auto& obj_pair: node_pair.second) {
-                        original_indices.insert_or_assign(obj_pair.second, obj_pair.second->parentIndex);
-                    }
-                    std::vector<RE::NiAVObject*> keys;
-                    for (auto p: original_indices) {
-                        keys.push_back(p.first);
-                    }
-                    int new_index = 0;
-                    if (keys.size() >= 2) {
-                        if (original_indices[keys[0]] < original_indices[keys[1]]) {
-                            for (int i = (int) original_indices.size() - 1; i >= 0; i -= 1) {
-                                new_indices.insert_or_assign(keys[new_index], original_indices[keys[i]]);
-                                new_index += 1;
-                            }
+            RE::BSEventNotifyControl ProcessEvent(const SKSE::NiNodeUpdateEvent* a_event,
+                                                  RE::BSTEventSource<SKSE::NiNodeUpdateEvent>* a_eventSource) {
+                if (a_event && a_event->reference && a_event->reference->Is3DLoaded()) {
+                    a_event->reference->IncRefCount();
+                    std::map<RE::NiAVObject*, uint32_t> object_to_overlay_index_map;
+                    std::map<RE::NiNode*, std::map<uint32_t, RE::NiAVObject*>> reverse_map;
+                    auto reverse_map_ptr = &reverse_map;
+                    auto oto_map_ptr = &object_to_overlay_index_map;
+                    auto callback = [=](RE::NiPointer<RE::NiNode> parent, RE::NiPointer<RE::NiAVObject> obj, uint32_t index) {
+                        if (!reverse_map_ptr->contains(parent.get())) {
+                            std::map<uint32_t, RE::NiAVObject*> obj_map;
+                            reverse_map_ptr->insert_or_assign(parent.get(), obj_map);
+                        }
+                        if (parent.get() && obj.get()) {
+                            auto& m = reverse_map_ptr->at(parent.get());
+                            m.insert_or_assign(obj->parentIndex, obj.get());
+                            oto_map_ptr->insert_or_assign(obj.get(), index);
+                        }
+                    };
+                    std::function<void(RE::NiPointer<RE::NiNode>, RE::NiPointer<RE::NiAVObject>, uint32_t)> callback_fn = callback;
+                    WalkOverlays(a_event->reference->GetCurrent3D(), false, callback_fn);
+                    for (auto& node_pair: reverse_map) {
+                        std::map<RE::NiAVObject*, uint32_t> original_indices;
+                        std::map<RE::NiAVObject*, uint32_t> new_indices;
+                        for (auto& obj_pair: node_pair.second) {
+                            original_indices.insert_or_assign(obj_pair.second, obj_pair.second->parentIndex);
+                        }
+                        std::vector<RE::NiAVObject*> keys;
+                        for (auto p: original_indices) {
+                            keys.push_back(p.first);
+                        }
+                        int new_index = 0;
+                        if (keys.size() >= 2) {
+                            if (original_indices[keys[0]] < original_indices[keys[1]]) {
+                                for (int i = (int) original_indices.size() - 1; i >= 0; i -= 1) {
+                                    new_indices.insert_or_assign(keys[new_index], original_indices[keys[i]]);
+                                    new_index += 1;
+                                }
 
-                            std::map<uint32_t, RE::NiPointer<RE::NiAVObject>> child_objects;
-                            for (auto index_pair: original_indices) {
-                                RE::NiPointer<RE::NiAVObject> temporary;
+                                std::map<uint32_t, RE::NiPointer<RE::NiAVObject>> child_objects;
+                                for (auto index_pair: original_indices) {
+                                    RE::NiPointer<RE::NiAVObject> temporary;
 
-                                node_pair.first->DetachChildAt(index_pair.second, temporary);
-                                child_objects.insert_or_assign(new_indices[index_pair.first], temporary);
-                            }
-                            for (auto& obj_pair: child_objects) {
-                                node_pair.first->InsertChildAt(obj_pair.first, obj_pair.second.get());
+                                    node_pair.first->DetachChildAt(index_pair.second, temporary);
+                                    child_objects.insert_or_assign(new_indices[index_pair.first], temporary);
+                                }
+                                for (auto& obj_pair: child_objects) {
+                                    node_pair.first->InsertChildAt(obj_pair.first, obj_pair.second.get());
+                                }
                             }
                         }
                     }
+                    a_event->reference->DecRefCount();
                 }
-                a_event->reference->DecRefCount();
+                return RE::BSEventNotifyControl::kContinue;
             }
-            return RE::BSEventNotifyControl::kContinue;
-        }
     };
     void GameEventHandler::onLoad() {
         logger::info("onLoad()");
@@ -280,7 +280,7 @@ namespace plugin {
                                       RE::BGSTextureSet* param_6) = (void (*)(void* inter, const char* param_2, const char* param_3,
                                                                               RE::TESObjectREFR* param_4, RE::BSGeometry* geo,
                                                                               RE::NiNode* param_5, RE::BGSTextureSet* param_6)) 0x0;
-
+    static void (*ApplyMorphsHook)(void*, void*, void*, bool, bool) = (void (*)(void*, void*, void*, bool, bool)) 0x0;
     static void (*UpdateMorphsHook)(void*, void*, void*) = (void (*)(void*, void*, void*)) 0x0;
     static void (*DeepCopyDetour)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
                                   uint64_t param_4) = (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
@@ -350,17 +350,28 @@ namespace plugin {
         }*/
         OverlayHook2(inter, param_2, param_3, param_4, param_5, param_6);
     }
-    static bool PARALLEL_MORPH_FIX = true;
+    static bool PARALLEL_MORPH_FIX = false;
 #ifdef PARALLEL_MORPH_WORKAROUND
     std::recursive_mutex update_morphs_mutex;
-    static void UpdateMorphsHook_fn(void* arg1, void* arg2, void* arg3) {
-        if (PARALLEL_MORPH_FIX)
-        {
-            std::lock_guard<std::recursive_mutex> l(update_morphs_mutex);
-            UpdateMorphsHook(arg1, arg2, arg3);
+    std::recursive_mutex apply_morphs_mutex;
+    static void ApplyMorphsHook_fn(void* arg1, void* arg2, void* arg3, bool attaching, bool defer) {
+        if (PARALLEL_MORPH_FIX) {
+            std::lock_guard<std::recursive_mutex> l(apply_morphs_mutex);
+            logger::info("Apply Morph Defer: {}", defer);
+            defer = false;
+            logger::info("Apply Morph New Defer: {}", defer);
+            ApplyMorphsHook(arg1, arg2, arg3,attaching,defer);
+        } else {
+            ApplyMorphsHook(arg1, arg2, arg3,attaching,defer);
         }
-        else 
-        {
+    }
+    static void UpdateMorphsHook_fn(void* arg1, void* arg2, void* arg3) {
+        if (PARALLEL_MORPH_FIX) {
+            logger::info("Update Morph Defer: {}",((uint64_t)arg3)&0x1);
+            arg3 = (void*) 0x0;
+            logger::info("Update Morph New Defer: {}", ((uint64_t) arg3) & 0x1);
+            UpdateMorphsHook(arg1, arg2, arg3);
+        } else {
             UpdateMorphsHook(arg1, arg2, arg3);
         }
     }
@@ -452,8 +463,8 @@ namespace plugin {
             ini["OverlayFix"]["parallelmorphfix"] = "default";
         }
         file.generate(ini);
-        if (ini["OverlayFix"]["parallelmorphfix"] == "false") {
-            PARALLEL_MORPH_FIX = false;
+        if (ini["OverlayFix"]["parallelmorphfix"] == "true") {
+            PARALLEL_MORPH_FIX = true;
         }
         if (ini["OverlayFix"]["reverse"] == "true") {
             do_reverse = true;
@@ -903,10 +914,18 @@ namespace plugin {
 #endif
 #ifdef PARALLEL_MORPH_WORKAROUND
                     logger::info("SKEEVR parallel morph workaround applying");
+                    if (ini["OverlayFix"]["parallelmorphfix"] == "default" || ini["OverlayFix"]["parallelmorphfix"] == "") {
+                        PARALLEL_MORPH_FIX = true;
+                    }
                     UpdateMorphsHook = (void (*)(void*, void*, void*))((uint64_t) skee64_info.lpBaseOfDll + 0x7540);
                     DetourTransactionBegin();
                     DetourUpdateThread(GetCurrentThread());
                     DetourAttach(&(PVOID&) UpdateMorphsHook, &UpdateMorphsHook_fn);
+                    DetourTransactionCommit();
+                    ApplyMorphsHook = (void (*)(void*, void*, void*, bool, bool))((uint64_t) skee64_info.lpBaseOfDll + 0x7480);
+                    DetourTransactionBegin();
+                    DetourUpdateThread(GetCurrentThread());
+                    DetourAttach(&(PVOID&) ApplyMorphsHook, &ApplyMorphsHook_fn);
                     DetourTransactionCommit();
                     logger::info("SKEEVR parallel morph workaround applied");
 #endif
@@ -945,10 +964,18 @@ namespace plugin {
 #endif
 #ifdef PARALLEL_MORPH_WORKAROUND
                     logger::info("SKEEVR 0p5 parallel morph workaround applying");
+                    if (ini["OverlayFix"]["parallelmorphfix"] == "default" || ini["OverlayFix"]["parallelmorphfix"] == "") {
+                        PARALLEL_MORPH_FIX = true;
+                    }
                     UpdateMorphsHook = (void (*)(void*, void*, void*))((uint64_t) skee64_info.lpBaseOfDll + 0x80a0);
                     DetourTransactionBegin();
                     DetourUpdateThread(GetCurrentThread());
                     DetourAttach(&(PVOID&) UpdateMorphsHook, &UpdateMorphsHook_fn);
+                    DetourTransactionCommit();
+                    ApplyMorphsHook = (void (*)(void*, void*, void*,bool,bool))((uint64_t) skee64_info.lpBaseOfDll + 0x7e60);
+                    DetourTransactionBegin();
+                    DetourUpdateThread(GetCurrentThread());
+                    DetourAttach(&(PVOID&) ApplyMorphsHook, &ApplyMorphsHook_fn);
                     DetourTransactionCommit();
                     logger::info("SKEEVR 0p5 parallel morph workaround applied");
 #endif
@@ -1003,11 +1030,35 @@ namespace plugin {
                         DetourAttach(&(PVOID&) CoSaveDropStacksAddr, &CoSaveDropStacksBypass);
                         DetourTransactionCommit();
                         logger::info(
-                            "Patched Co-Save Persistent Object save to prevent CTD, this may cause save corruption and should only be used "
+                            "Patched 1170 Co-Save Persistent Object save to prevent CTD, this may cause save corruption and should only be used "
                             "in one case.");
                     }
                 }
             }
+            if (HMODULE handleskse = GetModuleHandleA("sksevr_1_4_15.dll")) {
+                MODULEINFO skse_info;
+                GetModuleInformation(GetCurrentProcess(), handleskse, &skse_info, sizeof(skse_info));
+                uint32_t expected = 0;
+                if (skse_loaded.compare_exchange_strong(expected, 1) == true && expected == 0) {
+                    unsigned char signature[] = {0x56, 0x41, 0x56, 0x41, 0x57, 0x48, 0x83, 0xec, 0x20, 0x48, 0x8b, 0x05, 0xf3, 0x2b,
+                                                 0x0f, 0x00, 0x45, 0x33, 0xff, 0x48, 0x8b, 0xf1, 0x41, 0x8b, 0xef, 0x48, 0x8b, 0x10};
+                    if ((skse_info.SizeOfImage >= 0x6f600) &&
+                        memcmp((void*) signature, (void*) ((uintptr_t) skse_info.lpBaseOfDll + (uintptr_t) 0x6f535), sizeof(signature)) ==
+                            0) {
+                        //logger::info("Patching Co-Save Logging for debugging CTD");
+                        //CoSaveStoreLogAddr=(void (*)(void*, void*, unsigned int))((uintptr_t) skse_info.lpBaseOfDll + (uintptr_t) 0x5d890);
+                        CoSaveDropStacksAddr = (void (*)(void*))((uintptr_t) skse_info.lpBaseOfDll + (uintptr_t) 0x6f530);
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) CoSaveDropStacksAddr, &CoSaveDropStacksBypass);
+                        DetourTransactionCommit();
+                        logger::info(
+                            "Patched VR Co-Save Persistent Object save to prevent CTD, this may cause save corruption and should only be used "
+                            "in one case.");
+                    }
+                }
+            }
+            
         }
 #endif
 #ifdef STEAMDECK_CRASH_FIX
