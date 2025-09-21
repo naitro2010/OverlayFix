@@ -356,21 +356,41 @@ namespace plugin {
     std::recursive_mutex apply_morphs_mutex;
     static void ApplyMorphsHook_fn(void* arg1, void* arg2, void* arg3, bool attaching, bool defer) {
         if (PARALLEL_MORPH_FIX) {
-            std::lock_guard<std::recursive_mutex> l(apply_morphs_mutex);
             logger::info("Apply Morph Defer: {}", defer);
             defer = false;
             logger::info("Apply Morph New Defer: {}", defer);
-            ApplyMorphsHook(arg1, arg2, arg3,attaching,defer);
+            if (auto task_int = SKSE::GetTaskInterface()) {
+                if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
+                    ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IncRefCount();
+                }
+                task_int->AddTask([arg1=arg1,arg2=arg2,arg3=arg3,attaching=attaching,defer=defer] {
+                    ApplyMorphsHook(arg1, arg2, arg3, attaching, defer);
+                    if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
+                        ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->DecRefCount();
+                    }    
+                });
+            }
         } else {
-            ApplyMorphsHook(arg1, arg2, arg3,attaching,defer);
+            ApplyMorphsHook(arg1, arg2, arg3, attaching, defer);
         }
     }
     static void UpdateMorphsHook_fn(void* arg1, void* arg2, void* arg3) {
         if (PARALLEL_MORPH_FIX) {
-            logger::info("Update Morph Defer: {}",((uint64_t)arg3)&0x1);
+            logger::info("Update Morph Defer: {}", ((uint64_t) arg3) & 0x1);
             arg3 = (void*) 0x0;
             logger::info("Update Morph New Defer: {}", ((uint64_t) arg3) & 0x1);
-            UpdateMorphsHook(arg1, arg2, arg3);
+            if (auto task_int = SKSE::GetTaskInterface()) {
+                if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
+                    ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IncRefCount();
+                }
+                task_int->AddTask([arg1 = arg1, arg2 = arg2, arg3 = arg3] {
+                    
+                    UpdateMorphsHook(arg1, arg2, arg3);
+                    if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
+                        ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->DecRefCount();    
+                    }
+                });
+            }
         } else {
             UpdateMorphsHook(arg1, arg2, arg3);
         }
@@ -972,7 +992,7 @@ namespace plugin {
                     DetourUpdateThread(GetCurrentThread());
                     DetourAttach(&(PVOID&) UpdateMorphsHook, &UpdateMorphsHook_fn);
                     DetourTransactionCommit();
-                    ApplyMorphsHook = (void (*)(void*, void*, void*,bool,bool))((uint64_t) skee64_info.lpBaseOfDll + 0x7e60);
+                    ApplyMorphsHook = (void (*)(void*, void*, void*, bool, bool))((uint64_t) skee64_info.lpBaseOfDll + 0x7e60);
                     DetourTransactionBegin();
                     DetourUpdateThread(GetCurrentThread());
                     DetourAttach(&(PVOID&) ApplyMorphsHook, &ApplyMorphsHook_fn);
@@ -1030,7 +1050,8 @@ namespace plugin {
                         DetourAttach(&(PVOID&) CoSaveDropStacksAddr, &CoSaveDropStacksBypass);
                         DetourTransactionCommit();
                         logger::info(
-                            "Patched 1170 Co-Save Persistent Object save to prevent CTD, this may cause save corruption and should only be used "
+                            "Patched 1170 Co-Save Persistent Object save to prevent CTD, this may cause save corruption and should only be "
+                            "used "
                             "in one case.");
                     }
                 }
@@ -1053,12 +1074,12 @@ namespace plugin {
                         DetourAttach(&(PVOID&) CoSaveDropStacksAddr, &CoSaveDropStacksBypass);
                         DetourTransactionCommit();
                         logger::info(
-                            "Patched VR Co-Save Persistent Object save to prevent CTD, this may cause save corruption and should only be used "
+                            "Patched VR Co-Save Persistent Object save to prevent CTD, this may cause save corruption and should only be "
+                            "used "
                             "in one case.");
                     }
                 }
             }
-            
         }
 #endif
 #ifdef STEAMDECK_CRASH_FIX
