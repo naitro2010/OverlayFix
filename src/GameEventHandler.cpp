@@ -47,6 +47,10 @@ struct SKEENullFix : Xbyak::CodeGenerator {
             ret();
         }
 };
+typedef struct SKEEString {
+        std::string s;
+        size_t h;
+} SKEEString;
 static auto CoSaveDropStacksAddr = (void (*)(void*)) 0x0;
 static void CoSaveDropStacksBypass(void*) {
     return;
@@ -280,6 +284,12 @@ namespace plugin {
                                       RE::BGSTextureSet* param_6) = (void (*)(void* inter, const char* param_2, const char* param_3,
                                                                               RE::TESObjectREFR* param_4, RE::BSGeometry* geo,
                                                                               RE::NiNode* param_5, RE::BGSTextureSet* param_6)) 0x0;
+    static void (*UpdateNodeTransformsHook)(void*, RE::TESObjectREFR*, bool, bool,
+                                            const SKEEString* node_name) = (void (*)(void*, RE::TESObjectREFR*, bool, bool,
+                                                                               const SKEEString* node_name)) 0x0;
+    static auto SkeletonOnAttachHook =
+        (void (*)(void* arg1, void* arg2, void* arg3, void* arg4, void* arg5, bool arg6, void* arg7, void* arg8)) 0x0;
+    static auto SetNodeTransformsHook = (void (*)(void* arg1, uint32_t formID, uint64_t immediate, bool reset)) 0x0;
     static void (*ApplyMorphsHook)(void*, void*, void*, bool, bool) = (void (*)(void*, void*, void*, bool, bool)) 0x0;
     static void (*UpdateMorphsHook)(void*, void*, void*) = (void (*)(void*, void*, void*)) 0x0;
     static void (*DeepCopyDetour)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
@@ -350,24 +360,75 @@ namespace plugin {
         }*/
         OverlayHook2(inter, param_2, param_3, param_4, param_5, param_6);
     }
+
     static bool PARALLEL_MORPH_FIX = false;
+    static bool PARALLEL_TRANSFORM_FIX = true;
+    static void SkeletonOnAttach_fn(void* arg1, void* arg2, void* arg3, void* arg4, void* arg5, bool arg6, void* arg7, void* arg8) {
+        if (PARALLEL_TRANSFORM_FIX) {
+            if (auto task_int = SKSE::GetTaskInterface()) {
+            
+                if ((RE::TESObjectREFR*) arg2) {
+                    ((RE::TESObjectREFR*) arg2)->IncRefCount();
+                }
+                task_int->AddTask([arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8]{
+                    SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+                    if ((RE::TESObjectREFR*) arg2) {
+                        ((RE::TESObjectREFR*) arg2)->DecRefCount();
+                    }
+                });
+                return;
+            }
+        }
+        SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+    }
+    static void SetNodeTransformsHook_fn(void* arg1, uint32_t formID, uint64_t immediate, bool reset) {
+        if (PARALLEL_TRANSFORM_FIX) {
+            if (auto task_int = SKSE::GetTaskInterface()) {
+                task_int->AddTask([arg1 = arg1, arg2 = formID, arg3 = immediate, arg4=reset] {
+                    SetNodeTransformsHook(arg1, arg2, arg3, arg4);
+                });
+            }
+        } else {
+            SetNodeTransformsHook(arg1, formID,immediate,reset);
+        }
+    }
+    static void UpdateNodeTransformsHook_fn(void* arg1, RE::TESObjectREFR* ref, bool firstperson, bool gender, const SKEEString* node_string) {
+        if (PARALLEL_TRANSFORM_FIX) {
+            if (auto task_int = SKSE::GetTaskInterface()) {
+                if (ref && ((RE::TESObjectREFR*) ref)->As<RE::TESObjectREFR>()) {
+                    ((RE::TESObjectREFR*) ref)->As<RE::TESObjectREFR>()->IncRefCount();
+                }
+                SKEEString* new_node_string = new SKEEString(*node_string);
+                task_int->AddTask([arg1 = arg1, arg2 = ref, arg3 = firstperson, gender=gender, node_name=new_node_string] {
+                    UpdateNodeTransformsHook(arg1, arg2, arg3, gender, node_name);
+                    delete node_name;
+                    if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
+                        ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->DecRefCount();
+                    }
+                });
+            }
+        } else {
+            UpdateNodeTransformsHook(arg1, ref, firstperson, gender, node_string);
+        }
+    }
 #ifdef PARALLEL_MORPH_WORKAROUND
     std::recursive_mutex update_morphs_mutex;
     std::recursive_mutex apply_morphs_mutex;
+
     static void ApplyMorphsHook_fn(void* arg1, void* arg2, void* arg3, bool attaching, bool defer) {
         if (PARALLEL_MORPH_FIX) {
-            logger::info("Apply Morph Defer: {}", defer);
+            //logger::info("Apply Morph Defer: {}", defer);
             defer = false;
-            logger::info("Apply Morph New Defer: {}", defer);
+            //logger::info("Apply Morph New Defer: {}", defer);
             if (auto task_int = SKSE::GetTaskInterface()) {
                 if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
                     ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IncRefCount();
                 }
-                task_int->AddTask([arg1=arg1,arg2=arg2,arg3=arg3,attaching=attaching,defer=defer] {
+                task_int->AddTask([arg1 = arg1, arg2 = arg2, arg3 = arg3, attaching = attaching, defer = defer] {
                     ApplyMorphsHook(arg1, arg2, arg3, attaching, defer);
                     if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
                         ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->DecRefCount();
-                    }    
+                    }
                 });
             }
         } else {
@@ -376,18 +437,17 @@ namespace plugin {
     }
     static void UpdateMorphsHook_fn(void* arg1, void* arg2, void* arg3) {
         if (PARALLEL_MORPH_FIX) {
-            logger::info("Update Morph Defer: {}", ((uint64_t) arg3) & 0x1);
+            //logger::info("Update Morph Defer: {}", ((uint64_t) arg3) & 0x1);
             arg3 = (void*) 0x0;
-            logger::info("Update Morph New Defer: {}", ((uint64_t) arg3) & 0x1);
+            //logger::info("Update Morph New Defer: {}", ((uint64_t) arg3) & 0x1);
             if (auto task_int = SKSE::GetTaskInterface()) {
                 if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
                     ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IncRefCount();
                 }
                 task_int->AddTask([arg1 = arg1, arg2 = arg2, arg3 = arg3] {
-                    
                     UpdateMorphsHook(arg1, arg2, arg3);
                     if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
-                        ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->DecRefCount();    
+                        ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->DecRefCount();
                     }
                 });
             }
@@ -481,8 +541,12 @@ namespace plugin {
             ini["OverlayFix"]["savedanger"] = "default";
             ini["OverlayFix"]["vresl"] = "default";
             ini["OverlayFix"]["parallelmorphfix"] = "default";
+            ini["OverlayFix"]["paralleltransformfix"] = "true";
         }
         file.generate(ini);
+        if (ini["OverlayFix"]["paralleltransformfix"] == "false") {
+            PARALLEL_TRANSFORM_FIX = false;
+        }
         if (ini["OverlayFix"]["parallelmorphfix"] == "true") {
             PARALLEL_MORPH_FIX = true;
         }
@@ -571,6 +635,28 @@ namespace plugin {
                     }
 
 #endif
+                    if (PARALLEL_TRANSFORM_FIX) {
+                        logger::info("SKEE64 1170 parallel node transform workaround applying");
+                        UpdateNodeTransformsHook = (void (*)(void*, RE::TESObjectREFR*, bool, bool, const SKEEString* node_name))(
+                            (uint64_t) skee64_info.lpBaseOfDll + 0xc68d0);
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) UpdateNodeTransformsHook, &UpdateNodeTransformsHook_fn);
+                        DetourTransactionCommit();
+                        SetNodeTransformsHook = (void (*)(void* arg1, uint32_t formID, uint64_t immediate, bool reset))(
+                            (uint64_t) skee64_info.lpBaseOfDll + 0xc72c0);
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) SetNodeTransformsHook, &SetNodeTransformsHook_fn);
+                        DetourTransactionCommit();
+                        SkeletonOnAttachHook = (void (*)(void* arg1, void* arg2, void* arg3, void* arg4, void* arg5, bool arg6, void* arg7,
+                                                         void* arg8))((uint64_t) skee64_info.lpBaseOfDll + 0x133330);
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) SkeletonOnAttachHook, &SkeletonOnAttach_fn);
+                        DetourTransactionCommit();
+                        logger::info("SKEE64 1170 parallel node transform workaround applied");
+                    }
 #ifdef PARALLEL_MORPH_WORKAROUND
                     logger::info("SKEE64 1170 parallel morph workaround applying");
                     UpdateMorphsHook = (void (*)(void*, void*, void*))((uint64_t) skee64_info.lpBaseOfDll + 0x167b0);
@@ -670,7 +756,28 @@ namespace plugin {
                     DetourTransactionCommit();
                     logger::info("SKEE64 Tags 1170 morphcache shrink workaround applied");
 #endif
-
+                    if (PARALLEL_TRANSFORM_FIX) {
+                        logger::info("SKEE64 Tags 1170 parallel node transform workaround applying");
+                        UpdateNodeTransformsHook = (void (*)(void*, RE::TESObjectREFR*, bool, bool, const SKEEString* node_name))(
+                            (uint64_t) skee64_info.lpBaseOfDll + 0xca360);
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) UpdateNodeTransformsHook, &UpdateNodeTransformsHook_fn);
+                        DetourTransactionCommit();
+                        SetNodeTransformsHook = (void (*)(void* arg1, uint32_t formID, uint64_t immediate, bool reset))(
+                            (uint64_t) skee64_info.lpBaseOfDll + 0xcad50);
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) SetNodeTransformsHook, &SetNodeTransformsHook_fn);
+                        DetourTransactionCommit();
+                        SkeletonOnAttachHook = (void (*)(void* arg1, void* arg2, void* arg3, void* arg4, void* arg5, bool arg6, void* arg7,
+                                                         void* arg8))((uint64_t) skee64_info.lpBaseOfDll + 0x136150);
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) SkeletonOnAttachHook, &SkeletonOnAttach_fn);
+                        DetourTransactionCommit();
+                        logger::info("SKEE64 Tags 1170 parallel node transform workaround applied");
+                    }
                     if (skip_load == true) {
                         uintptr_t skip_load_addr = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0xab340);
                         REL::safe_write(skip_load_addr, (uint8_t*) "\x48\xe9", 2);
