@@ -21,6 +21,7 @@
 #ifdef SAMRIM_NAME_PATCH
 #include "thirdparty/DDNG_API.h"
 #endif
+static bool do_hide_unused_overlays = true;
 static bool do_reverse = false;
 static bool print_flags = true;
 static bool overlay_culling_fix = true;
@@ -137,6 +138,36 @@ namespace plugin {
                     }
                 }
                 geo = geo;
+                auto found_geo = geo;
+                if (found_geo != nullptr && print_flags == true) {
+                    if (found_geo->GetGeometryRuntimeData().properties[1]) {
+                        auto shader_prop = (RE::BSLightingShaderProperty*) found_geo->GetGeometryRuntimeData().properties[1].get();
+                        if (shader_prop != nullptr) {
+                            if (!do_hide_unused_overlays) {
+                                if (overlay_culling_fix == true) {
+                                    found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
+                                }
+                            } else {
+                                if (auto material = ((RE::BSLightingShaderMaterial*) shader_prop->material)) {
+                                    if ((material->materialAlpha < 0.0001f ||
+                                         ((((RE::BSLightingShaderMaterialBase*) material)->diffuseTexture &&
+                                           (((RE::BSLightingShaderMaterialBase*) material)
+                                                ->diffuseTexture->name.contains("\\default.dds")))))) {
+                                        found_geo->GetFlags().reset(RE::NiAVObject::Flag::kAlwaysDraw);
+                                        found_geo->GetFlags().set(RE::NiAVObject::Flag::kHidden);
+                                    } else {
+                                        if (overlay_culling_fix == true) {
+                                            found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
+                                            found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
+                                        } else {
+                                            found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
             return;
         }
@@ -164,6 +195,37 @@ namespace plugin {
                     }
                 }
                 geo = geo;
+                auto found_geo = geo;
+                if (found_geo != nullptr && print_flags == true) {
+                    if (found_geo->GetGeometryRuntimeData().properties[1]) {
+                        auto shader_prop = (RE::BSLightingShaderProperty*) found_geo->GetGeometryRuntimeData().properties[1].get();
+                        if (shader_prop != nullptr) {
+                            if (!do_hide_unused_overlays) {
+                                if (overlay_culling_fix == true) {
+                                    found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
+                                }
+                            } else {
+                                if (auto material = ((RE::BSLightingShaderMaterial*) shader_prop->material)) {
+                                    if ((material->materialAlpha < 0.0001f ||
+                                         ((((RE::BSLightingShaderMaterialBase*) material)->diffuseTexture &&
+                                           (((RE::BSLightingShaderMaterialBase*) material)
+                                                ->diffuseTexture->name.contains("\\default.dds")))))) {
+                                        found_geo->GetFlags().reset(RE::NiAVObject::Flag::kAlwaysDraw);
+                                        found_geo->GetFlags().set(RE::NiAVObject::Flag::kHidden);
+                                    } else {
+                                        if (overlay_culling_fix == true) {
+                                            found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
+                                            found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
+                                        } else {
+                                        
+                                            found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
             return;
         }
@@ -269,6 +331,7 @@ namespace plugin {
     }
 #endif
     static SKEENullFix* nullSkeletonFix;
+    static auto SetShaderPropertyHook = (void (*)(RE::NiAVObject* obj, void* variant, bool immediate)) 0x0;
     static void (*SteamdeckVirtualKeyboardCallback)(uint64_t param_1, char* param_2) = (void (*)(uint64_t param_1, char* param_2)) 0x0;
     static void (*SteamdeckVirtualKeyboardCallback2)(uint64_t param_1, char* param_2) = (void (*)(uint64_t param_1, char* param_2)) 0x0;
     static void (*OverlayHook)(void* inter, uint32_t param_2, uint32_t param_3, RE::TESObjectREFR* param_4, RE::NiNode* param_5,
@@ -295,7 +358,48 @@ namespace plugin {
     static void (*DeepCopyDetour)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
                                   uint64_t param_4) = (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
                                                                 uint64_t param_4)) 0x0;
-
+    static void SetShaderProperty_fn(RE::NiAVObject* obj, void* variant, bool immediate) {
+        if (do_hide_unused_overlays) {
+            immediate = true;
+        }
+        SetShaderPropertyHook(obj, variant, immediate);
+        RE::BSGeometry* geo = obj->AsGeometry();
+        if (geo != nullptr) {
+            geo = geo;
+            auto found_geo = geo;
+            if (found_geo != nullptr && print_flags == true) {
+                if (obj->name.contains("[SOvl") || obj->name.contains("[Ovl")) {
+                    if (found_geo->GetGeometryRuntimeData().properties[1]) {
+                        auto shader_prop = (RE::BSLightingShaderProperty*) found_geo->GetGeometryRuntimeData().properties[1].get();
+                        if (shader_prop != nullptr) {
+                            if (!do_hide_unused_overlays) {
+                                if (overlay_culling_fix == true) {
+                                    found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
+                                }
+                            } else {
+                                if (auto material = ((RE::BSLightingShaderMaterial*) shader_prop->material)) {
+                                    if ((material->materialAlpha < 0.0001f ||
+                                         ((((RE::BSLightingShaderMaterialBase*) material)->diffuseTexture &&
+                                           (((RE::BSLightingShaderMaterialBase*) material)
+                                                ->diffuseTexture->name.contains("\\default.dds")))))) {
+                                        found_geo->GetFlags().reset(RE::NiAVObject::Flag::kAlwaysDraw);
+                                        found_geo->GetFlags().set(RE::NiAVObject::Flag::kHidden);
+                                    } else {
+                                        if (overlay_culling_fix == true) {
+                                            found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
+                                            found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
+                                        } else {
+                                            found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
     static void DeepCopy_fn(uint64_t param_1, uint64_t* param_2, uint64_t param_3, uint64_t param_4) {
         if (param_1 == 0x0) {
             logger::info("Invalid DeepCopy, skipping copy");
@@ -513,9 +617,29 @@ namespace plugin {
                         if (shader_prop != nullptr) {
                             logger::info("before culling fix: overlay {} flags {} NiAVObjectFlags {}", param_2,
                                          shader_prop->flags.underlying(), found_geo->GetFlags().underlying());
-                            if (overlay_culling_fix == true) {
-                                found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
+                            if (!do_hide_unused_overlays) {
+                                if (overlay_culling_fix == true) {
+                                    found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
+                                    logger::info("after culling fix: overlay {} flags {} NiAVObjectFlags {}", param_2,
+                                                 shader_prop->flags.underlying(), found_geo->GetFlags().underlying());
+                                }
+                            } else {
 
+
+                                if (auto material = ((RE::BSLightingShaderMaterial*) shader_prop->material)) {
+                                    if ((material->materialAlpha < 0.0001f || ((((RE::BSLightingShaderMaterialBase*)material)->diffuseTexture && (((RE::BSLightingShaderMaterialBase*)material)->diffuseTexture->name.contains("\\default.dds")))))) {
+                                        found_geo->GetFlags().reset(RE::NiAVObject::Flag::kAlwaysDraw);
+                                        found_geo->GetFlags().set(RE::NiAVObject::Flag::kHidden);
+                                    } else {
+                                        if (overlay_culling_fix == true) {
+                                            found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
+                                            found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
+
+                                        } else {
+                                            found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
+                                        }
+                                    }
+                                }
                                 logger::info("after culling fix: overlay {} flags {} NiAVObjectFlags {}", param_2,
                                              shader_prop->flags.underlying(), found_geo->GetFlags().underlying());
                             }
@@ -538,12 +662,16 @@ namespace plugin {
             ini["OverlayFix"]["reverse"] = "default";
             ini["OverlayFix"]["skipload"] = "false";
             ini["OverlayFix"]["nocull"] = "default";
+            ini["OverlayFix"]["hideunusedoverlays"] = "default";
             ini["OverlayFix"]["savedanger"] = "default";
             ini["OverlayFix"]["vresl"] = "default";
             ini["OverlayFix"]["parallelmorphfix"] = "default";
             ini["OverlayFix"]["paralleltransformfix"] = "true";
         }
         file.generate(ini);
+        if (ini["OverlayFix"]["hideunusedoverlays"] == "false") {
+            do_hide_unused_overlays = false;
+        }
         if (ini["OverlayFix"]["paralleltransformfix"] == "false") {
             PARALLEL_TRANSFORM_FIX = false;
         }
@@ -635,6 +763,12 @@ namespace plugin {
                     }
 
 #endif
+                    SetShaderPropertyHook =
+                        (void (*)(RE::NiAVObject* obj, void* variant, bool immediate))((uint64_t) skee64_info.lpBaseOfDll + 0x127e70);
+                    DetourTransactionBegin();
+                    DetourUpdateThread(GetCurrentThread());
+                    DetourAttach(&(PVOID&) SetShaderPropertyHook, &SetShaderProperty_fn);
+                    DetourTransactionCommit();
                     if (PARALLEL_TRANSFORM_FIX) {
                         logger::info("SKEE64 1170 parallel node transform workaround applying");
                         /*
@@ -743,6 +877,12 @@ namespace plugin {
                     }
 
 #endif
+                    SetShaderPropertyHook =
+                        (void (*)(RE::NiAVObject* obj, void* variant, bool immediate))((uint64_t) skee64_info.lpBaseOfDll + 0x12ceb0);
+                    DetourTransactionBegin();
+                    DetourUpdateThread(GetCurrentThread());
+                    DetourAttach(&(PVOID&) SetShaderPropertyHook, &SetShaderProperty_fn);
+                    DetourTransactionCommit();
 #ifdef PARALLEL_MORPH_WORKAROUND
                     logger::info("SKEE64 Tags 1170  parallel morph workaround applying");
                     ApplyMorphsHook = (void (*)(void*, void*, void*, bool, bool))((uint64_t) skee64_info.lpBaseOfDll + 0x1ce60);
@@ -837,6 +977,12 @@ namespace plugin {
                         DetourTransactionCommit();
                         logger::info("SKEE64 UBE2 morphcache shrink workaround applied");
 #endif
+                        SetShaderPropertyHook =
+                            (void (*)(RE::NiAVObject* obj, void* variant, bool immediate))((uint64_t) skee64_info.lpBaseOfDll + 0xd46f0);
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) SetShaderPropertyHook, &SetShaderProperty_fn);
+                        DetourTransactionCommit();
                         if (PARALLEL_TRANSFORM_FIX) {
                             logger::info("SKEE64 UBE2 parallel transform workaround applying");
                             SkeletonOnAttachHook = (void (*)(void* arg1, void* arg2, void* arg3, void* arg4, void* arg5, bool arg6,
@@ -945,6 +1091,12 @@ namespace plugin {
                             DetourTransactionCommit();
                             logger::info("SKEE64 1597 parallel transform workaround applied");
                         }
+                        SetShaderPropertyHook =
+                            (void (*)(RE::NiAVObject* obj, void* variant, bool immediate))((uint64_t) skee64_info.lpBaseOfDll + 0xd0e20);
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) SetShaderPropertyHook, &SetShaderProperty_fn);
+                        DetourTransactionCommit();
                         if (skip_load == true) {
                             uintptr_t skip_load_addr = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x4e32a);
                             REL::safe_write(skip_load_addr, (uint8_t*) "\x48\xe9", 2);
@@ -1019,6 +1171,12 @@ namespace plugin {
                     DetourTransactionCommit();
                     logger::info("SKEE64 041914 crash fix 2 applied");
 #endif
+                    SetShaderPropertyHook =
+                        (void (*)(RE::NiAVObject* obj, void* variant, bool immediate))((uint64_t) skee64_info.lpBaseOfDll + 0xdcf60);
+                    DetourTransactionBegin();
+                    DetourUpdateThread(GetCurrentThread());
+                    DetourAttach(&(PVOID&) SetShaderPropertyHook, &SetShaderProperty_fn);
+                    DetourTransactionCommit();
                     if (skip_load == true) {
                         uintptr_t skip_load_addr = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x57d0c);
                         REL::safe_write(skip_load_addr, (uint8_t*) "\x48\xe9", 2);
@@ -1142,6 +1300,12 @@ namespace plugin {
                     }
 
 #endif
+                    SetShaderPropertyHook =
+                        (void (*)(RE::NiAVObject* obj, void* variant, bool immediate))((uint64_t) skee64_info.lpBaseOfDll + 0xcd460);
+                    DetourTransactionBegin();
+                    DetourUpdateThread(GetCurrentThread());
+                    DetourAttach(&(PVOID&) SetShaderPropertyHook, &SetShaderProperty_fn);
+                    DetourTransactionCommit();
                     logger::info("SKEE64 VR patched");
 
                 } else if ((skee64_info.SizeOfImage >= 0x172cc8 + 7) &&
@@ -1177,6 +1341,12 @@ namespace plugin {
                         DetourTransactionCommit();
                         logger::info("SKEEVR 0p5 parallel transform workaround applied");
                     }
+                    SetShaderPropertyHook =
+                        (void (*)(RE::NiAVObject* obj, void* variant, bool immediate))((uint64_t) skee64_info.lpBaseOfDll + 0xd5950);
+                    DetourTransactionBegin();
+                    DetourUpdateThread(GetCurrentThread());
+                    DetourAttach(&(PVOID&) SetShaderPropertyHook, &SetShaderProperty_fn);
+                    DetourTransactionCommit();
 #ifdef PARALLEL_MORPH_WORKAROUND
                     logger::info("SKEEVR 0p5 parallel morph workaround applying");
                     if (ini["OverlayFix"]["parallelmorphfix"] == "default" || ini["OverlayFix"]["parallelmorphfix"] == "") {
