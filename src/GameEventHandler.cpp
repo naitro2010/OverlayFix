@@ -166,8 +166,12 @@ namespace plugin {
                                 }
                             }
                         }
+                        shader_prop->SetupGeometry(geo);
+                        shader_prop->FinishSetupGeometry(geo);
                     }
+
                 }
+
             }
             return;
         }
@@ -223,6 +227,8 @@ namespace plugin {
                                     }
                                 }
                             }
+                            shader_prop->SetupGeometry(geo);
+                            shader_prop->FinishSetupGeometry(geo);
                         }
                     }
                 }
@@ -363,41 +369,49 @@ namespace plugin {
             immediate = true;
         }
         SetShaderPropertyHook(obj, variant, immediate);
-        RE::BSGeometry* geo = obj->AsGeometry();
-        if (geo != nullptr) {
-            geo = geo;
-            auto found_geo = geo;
-            if (found_geo != nullptr && print_flags == true) {
-                if (obj->name.contains("[SOvl") || obj->name.contains("[Ovl")) {
-                    if (found_geo->GetGeometryRuntimeData().properties[1]) {
-                        auto shader_prop = (RE::BSLightingShaderProperty*) found_geo->GetGeometryRuntimeData().properties[1].get();
-                        if (shader_prop != nullptr) {
-                            if (!do_hide_unused_overlays) {
-                                if (overlay_culling_fix == true) {
-                                    found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
-                                }
-                            } else {
-                                if (auto material = ((RE::BSLightingShaderMaterial*) shader_prop->material)) {
-                                    if ((material->materialAlpha < 0.0001f ||
-                                         ((((RE::BSLightingShaderMaterialBase*) material)->diffuseTexture &&
-                                           (((RE::BSLightingShaderMaterialBase*) material)
-                                                ->diffuseTexture->name.contains("\\default.dds")))))) {
-                                        found_geo->GetFlags().reset(RE::NiAVObject::Flag::kAlwaysDraw);
-                                        found_geo->GetFlags().set(RE::NiAVObject::Flag::kHidden);
-                                    } else {
+        if (auto task_int = SKSE::GetTaskInterface()) {
+            obj->IncRefCount();
+            task_int->AddTask([obj]{
+                RE::BSGeometry* geo = obj->AsGeometry();
+                if (geo != nullptr) {
+                    geo = geo;
+                    auto found_geo = geo;
+                    if (found_geo != nullptr && print_flags == true) {
+                        if (obj->name.contains("[SOvl") || obj->name.contains("[Ovl")) {
+                            if (found_geo->GetGeometryRuntimeData().properties[1]) {
+                                auto shader_prop = (RE::BSLightingShaderProperty*) found_geo->GetGeometryRuntimeData().properties[1].get();
+                                if (shader_prop != nullptr) {
+                                    if (!do_hide_unused_overlays) {
                                         if (overlay_culling_fix == true) {
                                             found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
-                                            found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
-                                        } else {
-                                            found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
+                                        }
+                                    } else {
+                                        if (auto material = ((RE::BSLightingShaderMaterial*) shader_prop->material)) {
+                                            if ((material->materialAlpha < 0.0001f ||
+                                                 ((((RE::BSLightingShaderMaterialBase*) material)->diffuseTexture &&
+                                                   (((RE::BSLightingShaderMaterialBase*) material)
+                                                        ->diffuseTexture->name.contains("\\default.dds")))))) {
+                                                found_geo->GetFlags().reset(RE::NiAVObject::Flag::kAlwaysDraw);
+                                                found_geo->GetFlags().set(RE::NiAVObject::Flag::kHidden);
+                                            } else {
+                                                if (overlay_culling_fix == true) {
+                                                    found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
+                                                    found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
+                                                } else {
+                                                    found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
+                                                }
+                                            }
                                         }
                                     }
+                                    shader_prop->SetupGeometry(geo);
+                                    shader_prop->FinishSetupGeometry(geo);
                                 }
                             }
                         }
                     }
                 }
-            }
+                obj->DecRefCount();
+            });
         }
     }
     static void DeepCopy_fn(uint64_t param_1, uint64_t* param_2, uint64_t param_3, uint64_t param_4) {
