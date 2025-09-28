@@ -155,6 +155,7 @@ namespace plugin {
                                                 ->diffuseTexture->name.contains("\\default.dds")))))) {
                                         found_geo->GetFlags().reset(RE::NiAVObject::Flag::kAlwaysDraw);
                                         found_geo->GetFlags().set(RE::NiAVObject::Flag::kHidden);
+                                        found_geo->GetFlags().set(RE::NiAVObject::Flag::kDisableSorting);
                                     } else {
                                         if (overlay_culling_fix == true) {
                                             found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
@@ -216,6 +217,7 @@ namespace plugin {
                                                 ->diffuseTexture->name.contains("\\default.dds")))))) {
                                         found_geo->GetFlags().reset(RE::NiAVObject::Flag::kAlwaysDraw);
                                         found_geo->GetFlags().set(RE::NiAVObject::Flag::kHidden);
+                                        found_geo->GetFlags().set(RE::NiAVObject::Flag::kDisableSorting);
                                     } else {
                                         if (overlay_culling_fix == true) {
                                             found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
@@ -384,6 +386,7 @@ namespace plugin {
                                     if (!do_hide_unused_overlays) {
                                         if (overlay_culling_fix == true) {
                                             found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
+                                            
                                         }
                                     } else {
                                         if (auto material = ((RE::BSLightingShaderMaterial*) shader_prop->material)) {
@@ -393,6 +396,7 @@ namespace plugin {
                                                         ->diffuseTexture->name.contains("\\default.dds")))))) {
                                                 found_geo->GetFlags().reset(RE::NiAVObject::Flag::kAlwaysDraw);
                                                 found_geo->GetFlags().set(RE::NiAVObject::Flag::kHidden);
+                                                found_geo->GetFlags().set(RE::NiAVObject::Flag::kDisableSorting);
                                             } else {
                                                 if (overlay_culling_fix == true) {
                                                     found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
@@ -644,6 +648,7 @@ namespace plugin {
                                     if ((material->materialAlpha < 0.0001f || ((((RE::BSLightingShaderMaterialBase*)material)->diffuseTexture && (((RE::BSLightingShaderMaterialBase*)material)->diffuseTexture->name.contains("\\default.dds")))))) {
                                         found_geo->GetFlags().reset(RE::NiAVObject::Flag::kAlwaysDraw);
                                         found_geo->GetFlags().set(RE::NiAVObject::Flag::kHidden);
+                                        found_geo->GetFlags().set(RE::NiAVObject::Flag::kDisableSorting);
                                     } else {
                                         if (overlay_culling_fix == true) {
                                             found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
