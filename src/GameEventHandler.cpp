@@ -160,7 +160,9 @@ namespace plugin {
                                         if (overlay_culling_fix == true) {
                                             found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
                                             found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
+                                            found_geo->GetFlags().set(RE::NiAVObject::Flag::kDisableSorting);
                                         } else {
+                                            found_geo->GetFlags().set(RE::NiAVObject::Flag::kDisableSorting);
                                             found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
                                         }
                                     }
@@ -222,8 +224,9 @@ namespace plugin {
                                         if (overlay_culling_fix == true) {
                                             found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
                                             found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
+                                            found_geo->GetFlags().set(RE::NiAVObject::Flag::kDisableSorting);
                                         } else {
-                                        
+                                            found_geo->GetFlags().set(RE::NiAVObject::Flag::kDisableSorting);
                                             found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
                                         }
                                     }
@@ -400,8 +403,10 @@ namespace plugin {
                                             } else {
                                                 if (overlay_culling_fix == true) {
                                                     found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
+                                                    found_geo->GetFlags().set(RE::NiAVObject::Flag::kDisableSorting);
                                                     found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
                                                 } else {
+                                                    found_geo->GetFlags().set(RE::NiAVObject::Flag::kDisableSorting);
                                                     found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
                                                 }
                                             }
@@ -652,9 +657,11 @@ namespace plugin {
                                     } else {
                                         if (overlay_culling_fix == true) {
                                             found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
+                                            found_geo->GetFlags().set(RE::NiAVObject::Flag::kDisableSorting);
                                             found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
 
                                         } else {
+                                            found_geo->GetFlags().set(RE::NiAVObject::Flag::kDisableSorting);
                                             found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
                                         }
                                     }
