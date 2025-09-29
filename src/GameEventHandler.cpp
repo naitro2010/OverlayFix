@@ -1425,6 +1425,11 @@ namespace plugin {
         }
 #ifdef SAMRIM_NAME_PATCH
         if (do_samrim_name_fix) {
+            if (!ddng_loaded) {
+                if (DeviousDevicesAPI::LoadAPI()) {
+                    ddng_loaded = true;
+                }
+            }
             if (HMODULE handlesam = GetModuleHandleA("samrim.dll")) {
                 MODULEINFO samrim_info;
                 GetModuleInformation(GetCurrentProcess(), handlesam, &samrim_info, sizeof(samrim_info));
@@ -1526,11 +1531,7 @@ namespace plugin {
     }
 
     void GameEventHandler::onDataLoaded() {
-        if (!ddng_loaded) {
-            if (DeviousDevicesAPI::LoadAPI()) {
-                ddng_loaded = true;
-            }
-        }
+
         logger::info("onDataLoaded()");
     }
 
