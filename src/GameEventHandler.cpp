@@ -171,7 +171,7 @@ namespace plugin {
                             shader_prop->SetupGeometry(geo);
                             shader_prop->FinishSetupGeometry(geo);
                         }
-                        
+
                     }
 
                 }
@@ -377,7 +377,12 @@ namespace plugin {
         SetShaderPropertyHook(obj, variant, immediate);
         if (auto task_int = SKSE::GetTaskInterface()) {
             obj->IncRefCount();
-            task_int->AddTask([obj]{
+            RE::TESObjectREFR* refr = nullptr;
+            if (obj->GetUserData() && obj->GetUserData()->As<RE::TESObjectREFR>()) {
+                obj->GetUserData()->As<RE::TESObjectREFR>()->IncRefCount();
+                refr = obj->GetUserData()->As<RE::TESObjectREFR>();
+            }
+            task_int->AddTask([obj,refr]{
                 RE::BSGeometry* geo = obj->AsGeometry();
                 if (geo != nullptr) {
                     geo = geo;
@@ -421,6 +426,11 @@ namespace plugin {
                     }
                 }
                 obj->DecRefCount();
+                if (refr) {
+                    refr->DecRefCount();
+                }
+
+
             });
         }
     }
@@ -498,7 +508,14 @@ namespace plugin {
                     ((RE::TESObjectREFR*) arg2)->IncRefCount();
                 }
                 task_int->AddTask([arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8] {
-                    SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+                    if (arg2) {
+                        if (((RE::TESObjectREFR*) arg2)
+                                ->As<RE::TESObjectREFR>() && ((RE::TESObjectREFR*) arg2)
+                                ->As<RE::TESObjectREFR>()
+                                ->Is3DLoaded()) {
+                            SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+                        }
+                    }
                     if ((RE::TESObjectREFR*) arg2) {
                         ((RE::TESObjectREFR*) arg2)->DecRefCount();
                     }
@@ -553,7 +570,11 @@ namespace plugin {
                     ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IncRefCount();
                 }
                 task_int->AddTask([arg1 = arg1, arg2 = arg2, arg3 = arg3, attaching = attaching, defer = defer] {
-                    ApplyMorphsHook(arg1, arg2, arg3, attaching, defer);
+                    if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
+                        if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
+                            ApplyMorphsHook(arg1, arg2, arg3, attaching, defer);
+                        }
+                    }
                     if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
                         ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->DecRefCount();
                     }
@@ -573,7 +594,11 @@ namespace plugin {
                     ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IncRefCount();
                 }
                 task_int->AddTask([arg1 = arg1, arg2 = arg2, arg3 = arg3] {
-                    UpdateMorphsHook(arg1, arg2, arg3);
+                    if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
+                        if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
+                            UpdateMorphsHook(arg1, arg2, arg3);
+                        }
+                    }
                     if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
                         ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->DecRefCount();
                     }
