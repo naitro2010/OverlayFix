@@ -168,9 +168,10 @@ namespace plugin {
                                     }
                                 }
                             }
+                            shader_prop->SetupGeometry(geo);
+                            shader_prop->FinishSetupGeometry(geo);
                         }
-                        shader_prop->SetupGeometry(geo);
-                        shader_prop->FinishSetupGeometry(geo);
+                        
                     }
 
                 }
