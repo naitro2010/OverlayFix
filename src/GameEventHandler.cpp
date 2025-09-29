@@ -312,14 +312,10 @@ namespace plugin {
 #ifdef SAMRIM_NAME_PATCH
     bool ddng_loaded = false;
     const char* GetFullNameHooked(RE::TESForm* form) {
-        std::lock_guard<std::recursive_mutex> lock(g_name_mutex);
+
         if (form != nullptr) {
             if (auto armor = form->As<RE::TESObjectARMO>()) {
-                if (!ddng_loaded) {
-                    if (DeviousDevicesAPI::LoadAPI()) {
-                        ddng_loaded = true;
-                    }
-                }
+
                 if (ddng_loaded) {
                     if (auto inventory_armor = DeviousDevicesAPI::g_API->GetDeviceInventory(armor)) {
                         if (inventory_armor->GetName() != nullptr && inventory_armor->GetName()[0] != 0x0) {
@@ -707,6 +703,7 @@ namespace plugin {
     static bool save_danger = false;
     static bool skip_load = false;
     static bool vr_esl = true;
+    static bool do_samrim_name_fix = false;
     void GameEventHandler::onPostPostLoad() {
         mINI::INIFile file("Data\\skse\\plugins\\OverlayFix.ini");
         mINI::INIStructure ini;
@@ -719,6 +716,7 @@ namespace plugin {
             ini["OverlayFix"]["vresl"] = "default";
             ini["OverlayFix"]["parallelmorphfix"] = "default";
             ini["OverlayFix"]["paralleltransformfix"] = "true";
+            ini["OverlayFix"]["samrimnamefix"] = "false";
         }
         file.generate(ini);
         if (ini["OverlayFix"]["hideunusedoverlays"] == "false") {
@@ -751,7 +749,9 @@ namespace plugin {
         } else if (ini["OverlayFix"]["vresl"] == "false") {
             vr_esl = false;
         }
-
+        if (ini["OverlayFix"]["samrimnamefix"] == "true") {
+            do_samrim_name_fix = true;
+        }
         if (HMODULE handle = GetModuleHandleA("skee64.dll")) {
             MODULEINFO skee64_info;
             GetModuleInformation(GetCurrentProcess(), handle, &skee64_info, sizeof(skee64_info));
@@ -1424,24 +1424,26 @@ namespace plugin {
             }
         }
 #ifdef SAMRIM_NAME_PATCH
-        if (HMODULE handlesam = GetModuleHandleA("samrim.dll")) {
-            MODULEINFO samrim_info;
-            GetModuleInformation(GetCurrentProcess(), handlesam, &samrim_info, sizeof(samrim_info));
-            uint32_t expected = 0;
-            if (samrim_loaded.compare_exchange_strong(expected, 1) == true && expected == 0) {
-                std::vector<unsigned char> get_full_name_prefix = {0x48, 0x83, 0xec, 0x28, 0x0f, 0xb6, 0x41, 0x1a, 0x4c, 0x8b,
-                                                                   0xc1, 0x83, 0xc0, 0xf6, 0x83, 0xf8, 0x7b, 0x77, 0x72};
-                std::vector<unsigned char> samrim_data((unsigned char*) samrim_info.lpBaseOfDll,
-                                                       (unsigned char*) samrim_info.lpBaseOfDll + samrim_info.SizeOfImage);
-                auto itfound =
-                    std::search(samrim_data.begin(), samrim_data.end(), get_full_name_prefix.begin(), get_full_name_prefix.end());
-                if (itfound != samrim_data.end()) {
-                    if ((samrim_info.SizeOfImage >= 0x1000)) {
-                        uintptr_t patch0 = ((uintptr_t) samrim_info.lpBaseOfDll + (uintptr_t) (itfound - samrim_data.begin()));
-                        Code c0((uint64_t) &GetFullNameHooked);
-                        const uint8_t* hook0 = c0.getCode();
-                        REL::safe_write(patch0, hook0, c0.getSize());
-                        logger::info("SAM patched");
+        if (do_samrim_name_fix) {
+            if (HMODULE handlesam = GetModuleHandleA("samrim.dll")) {
+                MODULEINFO samrim_info;
+                GetModuleInformation(GetCurrentProcess(), handlesam, &samrim_info, sizeof(samrim_info));
+                uint32_t expected = 0;
+                if (samrim_loaded.compare_exchange_strong(expected, 1) == true && expected == 0) {
+                    std::vector<unsigned char> get_full_name_prefix = {0x48, 0x83, 0xec, 0x28, 0x0f, 0xb6, 0x41, 0x1a, 0x4c, 0x8b,
+                                                                       0xc1, 0x83, 0xc0, 0xf6, 0x83, 0xf8, 0x7b, 0x77, 0x72};
+                    std::vector<unsigned char> samrim_data((unsigned char*) samrim_info.lpBaseOfDll,
+                                                           (unsigned char*) samrim_info.lpBaseOfDll + samrim_info.SizeOfImage);
+                    auto itfound =
+                        std::search(samrim_data.begin(), samrim_data.end(), get_full_name_prefix.begin(), get_full_name_prefix.end());
+                    if (itfound != samrim_data.end()) {
+                        if ((samrim_info.SizeOfImage >= 0x1000)) {
+                            uintptr_t patch0 = ((uintptr_t) samrim_info.lpBaseOfDll + (uintptr_t) (itfound - samrim_data.begin()));
+                            Code c0((uint64_t) &GetFullNameHooked);
+                            const uint8_t* hook0 = c0.getCode();
+                            REL::safe_write(patch0, hook0, c0.getSize());
+                            logger::info("SAM patched");
+                        }
                     }
                 }
             }
@@ -1524,6 +1526,11 @@ namespace plugin {
     }
 
     void GameEventHandler::onDataLoaded() {
+        if (!ddng_loaded) {
+            if (DeviousDevicesAPI::LoadAPI()) {
+                ddng_loaded = true;
+            }
+        }
         logger::info("onDataLoaded()");
     }
 
