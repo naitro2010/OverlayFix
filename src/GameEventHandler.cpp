@@ -495,7 +495,7 @@ namespace plugin {
         OverlayHook2(inter, param_2, param_3, param_4, param_5, param_6);
     }
 
-    static bool PARALLEL_MORPH_FIX = false;
+    static bool PARALLEL_MORPH_FIX = true;
     static bool PARALLEL_TRANSFORM_FIX = true;
     static void SkeletonOnAttach_fn(void* arg1, void* arg2, void* arg3, void* arg4, void* arg5, bool arg6, void* arg7, void* arg8) {
         if (PARALLEL_TRANSFORM_FIX) {
@@ -725,8 +725,8 @@ namespace plugin {
         if (ini["OverlayFix"]["paralleltransformfix"] == "false") {
             PARALLEL_TRANSFORM_FIX = false;
         }
-        if (ini["OverlayFix"]["parallelmorphfix"] == "true") {
-            PARALLEL_MORPH_FIX = true;
+        if (ini["OverlayFix"]["parallelmorphfix"] == "false") {
+            PARALLEL_MORPH_FIX = false;
         }
         if (ini["OverlayFix"]["reverse"] == "true") {
             do_reverse = true;
