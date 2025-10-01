@@ -387,44 +387,48 @@ namespace plugin {
             {
                 std::lock_guard l(morph_task_mutex);
                 morph_task_queue.push_back([obj, refr] {
-                    if (obj && refr && refr->Is3DLoaded()) {
-                        RE::BSGeometry* geo = obj->AsGeometry();
-                        if (geo != nullptr) {
-                            geo = geo;
-                            auto found_geo = geo;
-                            if (found_geo != nullptr && print_flags == true) {
-                                if (obj->name.contains("[SOvl") || obj->name.contains("[Ovl")) {
-                                    if (found_geo->GetGeometryRuntimeData().properties[1]) {
-                                        auto shader_prop =
-                                            (RE::BSLightingShaderProperty*) found_geo->GetGeometryRuntimeData().properties[1].get();
-                                        if (shader_prop != nullptr) {
-                                            if (!do_hide_unused_overlays) {
-                                                if (overlay_culling_fix == true) {
-                                                    found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
-                                                }
-                                            } else {
-                                                if (auto material = ((RE::BSLightingShaderMaterial*) shader_prop->material)) {
-                                                    if ((material->materialAlpha < 0.0001f ||
-                                                         ((((RE::BSLightingShaderMaterialBase*) material)->diffuseTexture &&
-                                                           (((RE::BSLightingShaderMaterialBase*) material)
-                                                                ->diffuseTexture->name.contains("\\default.dds")))))) {
-                                                        found_geo->GetFlags().reset(RE::NiAVObject::Flag::kAlwaysDraw);
-                                                        found_geo->GetFlags().set(RE::NiAVObject::Flag::kHidden);
-                                                        found_geo->GetFlags().set(RE::NiAVObject::Flag::kDisableSorting);
-                                                    } else {
+                    if (refr && (((RE::TESObjectREFR*) refr)->_refCount) > 1) {
+                        if (obj && refr && refr->Is3DLoaded()) {
+                            if (obj->_refCount > 1) {
+                                RE::BSGeometry* geo = obj->AsGeometry();
+                                if (geo != nullptr) {
+                                    geo = geo;
+                                    auto found_geo = geo;
+                                    if (found_geo != nullptr && print_flags == true) {
+                                        if (obj->name.contains("[SOvl") || obj->name.contains("[Ovl")) {
+                                            if (found_geo->GetGeometryRuntimeData().properties[1]) {
+                                                auto shader_prop =
+                                                    (RE::BSLightingShaderProperty*) found_geo->GetGeometryRuntimeData().properties[1].get();
+                                                if (shader_prop != nullptr) {
+                                                    if (!do_hide_unused_overlays) {
                                                         if (overlay_culling_fix == true) {
                                                             found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
-                                                            found_geo->GetFlags().reset(RE::NiAVObject::Flag::kDisableSorting);
-                                                            found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
-                                                        } else {
-                                                            found_geo->GetFlags().reset(RE::NiAVObject::Flag::kDisableSorting);
-                                                            found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
+                                                        }
+                                                    } else {
+                                                        if (auto material = ((RE::BSLightingShaderMaterial*) shader_prop->material)) {
+                                                            if ((material->materialAlpha < 0.0001f ||
+                                                                 ((((RE::BSLightingShaderMaterialBase*) material)->diffuseTexture &&
+                                                                   (((RE::BSLightingShaderMaterialBase*) material)
+                                                                        ->diffuseTexture->name.contains("\\default.dds")))))) {
+                                                                found_geo->GetFlags().reset(RE::NiAVObject::Flag::kAlwaysDraw);
+                                                                found_geo->GetFlags().set(RE::NiAVObject::Flag::kHidden);
+                                                                found_geo->GetFlags().set(RE::NiAVObject::Flag::kDisableSorting);
+                                                            } else {
+                                                                if (overlay_culling_fix == true) {
+                                                                    found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
+                                                                    found_geo->GetFlags().reset(RE::NiAVObject::Flag::kDisableSorting);
+                                                                    found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
+                                                                } else {
+                                                                    found_geo->GetFlags().reset(RE::NiAVObject::Flag::kDisableSorting);
+                                                                    found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
+                                                                }
+                                                            }
                                                         }
                                                     }
+                                                    shader_prop->SetupGeometry(geo);
+                                                    shader_prop->FinishSetupGeometry(geo);
                                                 }
                                             }
-                                            shader_prop->SetupGeometry(geo);
-                                            shader_prop->FinishSetupGeometry(geo);
                                         }
                                     }
                                 }
@@ -514,19 +518,44 @@ namespace plugin {
                 if ((RE::TESObjectREFR*) arg2) {
                     ((RE::TESObjectREFR*) arg2)->IncRefCount();
                 }
+                if ((RE::NiAVObject*) arg5) {
+                    ((RE::NiAVObject*) arg5)->IncRefCount();
+                }
+                if ((RE::NiNode*) arg7) {
+                    ((RE::NiNode*) arg7)->IncRefCount();
+                }
+                if ((RE::NiNode*) arg8) {
+                    ((RE::NiNode*) arg8)->IncRefCount();
+                }
                 {
                     std::lock_guard l(morph_task_mutex);
                     morph_task_queue.push_back([arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8] {
                         if (arg2) {
                             if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() &&
+                                (((RE::TESObjectREFR*) arg2)->_refCount > 1) &&
                                 ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
                                 if (arg5) {
-                                    SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+                                    if (((RE::NiAVObject*) arg5) && ((RE::NiAVObject*) arg5)->_refCount > 1) {
+                                        if (((RE::NiNode*) arg7) && ((RE::NiNode*) arg7)->_refCount > 1) {
+                                            if (((RE::NiNode*) arg8) && ((RE::NiNode*) arg8)->_refCount > 1) {
+                                                SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
                         if ((RE::TESObjectREFR*) arg2) {
                             ((RE::TESObjectREFR*) arg2)->DecRefCount();
+                        }
+                        if ((RE::NiAVObject*) arg5) {
+                            ((RE::NiAVObject*) arg5)->DecRefCount();
+                        }
+                        if ((RE::NiNode*) arg7) {
+                            ((RE::NiNode*) arg7)->DecRefCount();
+                        }
+                        if ((RE::NiNode*) arg8) {
+                            ((RE::NiNode*) arg8)->DecRefCount();
                         }
                     });
                 }
@@ -588,7 +617,9 @@ namespace plugin {
                         if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
                             if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
                                 if (arg3 != 0x0) {
-                                    ApplyMorphsHook(arg1, arg2, arg3, attaching, defer);
+                                    if ((((RE::TESObjectREFR*) arg2)->_refCount) > 1) {
+                                        ApplyMorphsHook(arg1, arg2, arg3, attaching, defer);
+                                    }
                                 }
                             }
                         }
@@ -618,7 +649,9 @@ namespace plugin {
                     morph_task_queue.push_back([arg1 = arg1, arg2 = arg2, arg3 = arg3] {
                         if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
                             if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
-                                UpdateMorphsHook(arg1, arg2, arg3);
+                                if ((((RE::TESObjectREFR*) arg2)->_refCount) > 1) {
+                                    UpdateMorphsHook(arg1, arg2, arg3);
+                                }
                             }
                         }
                         if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
