@@ -515,7 +515,7 @@ namespace plugin {
     static bool PARALLEL_MORPH_FIX = true;
     static bool PARALLEL_TRANSFORM_FIX = true;
     static void SkeletonOnAttach_fn(void* arg1, void* arg2, void* arg3, void* arg4, void* arg5, bool arg6, void* arg7, void* arg8) {
-        if (PARALLEL_TRANSFORM_FIX) {
+        if (PARALLEL_TRANSFORM_FIX && RE::PlayerCharacter::GetSingleton() && RE::PlayerCharacter::GetSingleton()->Is3DLoaded()) {
             if (auto task_int = SKSE::GetTaskInterface()) {
                 if ((RE::TESObjectREFR*) arg2) {
                     ((RE::TESObjectREFR*) arg2)->IncRefCount();
@@ -617,7 +617,7 @@ namespace plugin {
     std::recursive_mutex apply_morphs_mutex;
 
     static void ApplyMorphsHook_fn(void* arg1, void* arg2, void* arg3, bool attaching, bool defer) {
-        if (PARALLEL_MORPH_FIX) {
+        if (PARALLEL_MORPH_FIX && RE::PlayerCharacter::GetSingleton() && RE::PlayerCharacter::GetSingleton()->Is3DLoaded()) {
             //logger::info("Apply Morph Defer: {}", defer);
             defer = false;
             //logger::info("Apply Morph New Defer: {}", defer);
@@ -652,7 +652,7 @@ namespace plugin {
         }
     }
     static void UpdateMorphsHook_fn(void* arg1, void* arg2, void* arg3) {
-        if (PARALLEL_MORPH_FIX) {
+        if (PARALLEL_MORPH_FIX && RE::PlayerCharacter::GetSingleton() && RE::PlayerCharacter::GetSingleton()->Is3DLoaded()) {
             //logger::info("Update Morph Defer: {}", ((uint64_t) arg3) & 0x1);
             arg3 = (void*) 0x0;
             //logger::info("Update Morph New Defer: {}", ((uint64_t) arg3) & 0x1);
@@ -1634,6 +1634,10 @@ namespace plugin {
     }
 
     void GameEventHandler::onNewGame() {
+        {
+            std::lock_guard l(morph_task_mutex);
+            morph_task_queue.clear();
+        }
         if (overlayfix == nullptr) {
             overlayfix = new Update3DModelOverlayFix();
             SKSE::GetNiNodeUpdateEventSource()->AddEventSink<SKSE::NiNodeUpdateEvent>(overlayfix);
@@ -1642,6 +1646,10 @@ namespace plugin {
     }
 
     void GameEventHandler::onPreLoadGame() {
+        { 
+            std::lock_guard l(morph_task_mutex);
+            morph_task_queue.clear();
+        }
         if (overlayfix == nullptr) {
             overlayfix = new Update3DModelOverlayFix();
             SKSE::GetNiNodeUpdateEventSource()->AddEventSink<SKSE::NiNodeUpdateEvent>(overlayfix);
