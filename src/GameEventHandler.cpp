@@ -367,61 +367,69 @@ namespace plugin {
                                   uint64_t param_4) = (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
                                                                 uint64_t param_4)) 0x0;
     static void SetShaderProperty_fn(RE::NiAVObject* obj, void* variant, bool immediate) {
-        if (do_hide_unused_overlays) {
-            immediate = true;
-        }
-        SetShaderPropertyHook(obj, variant, immediate);
-        if (auto task_int = SKSE::GetTaskInterface()) {
+        RE::TESObjectREFR* refr = nullptr;
+        if (!obj) {
+            return;
+        } else {
             obj->IncRefCount();
-            RE::TESObjectREFR* refr = nullptr;
             if (obj->GetUserData() && obj->GetUserData()->As<RE::TESObjectREFR>()) {
                 obj->GetUserData()->As<RE::TESObjectREFR>()->IncRefCount();
                 refr = obj->GetUserData()->As<RE::TESObjectREFR>();
             }
+        }
+        SetShaderPropertyHook(obj, variant, immediate);
+        
+        if (auto task_int = SKSE::GetTaskInterface()) {
+            
+            
             task_int->AddTask([obj,refr]{
-                RE::BSGeometry* geo = obj->AsGeometry();
-                if (geo != nullptr) {
-                    geo = geo;
-                    auto found_geo = geo;
-                    if (found_geo != nullptr && print_flags == true) {
-                        if (obj->name.contains("[SOvl") || obj->name.contains("[Ovl")) {
-                            if (found_geo->GetGeometryRuntimeData().properties[1]) {
-                                auto shader_prop = (RE::BSLightingShaderProperty*) found_geo->GetGeometryRuntimeData().properties[1].get();
-                                if (shader_prop != nullptr) {
-                                    if (!do_hide_unused_overlays) {
-                                        if (overlay_culling_fix == true) {
-                                            found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
-                                            
-                                        }
-                                    } else {
-                                        if (auto material = ((RE::BSLightingShaderMaterial*) shader_prop->material)) {
-                                            if ((material->materialAlpha < 0.0001f ||
-                                                 ((((RE::BSLightingShaderMaterialBase*) material)->diffuseTexture &&
-                                                   (((RE::BSLightingShaderMaterialBase*) material)
-                                                        ->diffuseTexture->name.contains("\\default.dds")))))) {
-                                                found_geo->GetFlags().reset(RE::NiAVObject::Flag::kAlwaysDraw);
-                                                found_geo->GetFlags().set(RE::NiAVObject::Flag::kHidden);
-                                                found_geo->GetFlags().set(RE::NiAVObject::Flag::kDisableSorting);
-                                            } else {
-                                                if (overlay_culling_fix == true) {
-                                                    found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
-                                                    found_geo->GetFlags().reset(RE::NiAVObject::Flag::kDisableSorting);
-                                                    found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
+                if (obj && refr && refr->Is3DLoaded()) {
+                    RE::BSGeometry* geo = obj->AsGeometry();
+                    if (geo != nullptr) {
+                        geo = geo;
+                        auto found_geo = geo;
+                        if (found_geo != nullptr && print_flags == true) {
+                            if (obj->name.contains("[SOvl") || obj->name.contains("[Ovl")) {
+                                if (found_geo->GetGeometryRuntimeData().properties[1]) {
+                                    auto shader_prop =
+                                        (RE::BSLightingShaderProperty*) found_geo->GetGeometryRuntimeData().properties[1].get();
+                                    if (shader_prop != nullptr) {
+                                        if (!do_hide_unused_overlays) {
+                                            if (overlay_culling_fix == true) {
+                                                found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
+                                            }
+                                        } else {
+                                            if (auto material = ((RE::BSLightingShaderMaterial*) shader_prop->material)) {
+                                                if ((material->materialAlpha < 0.0001f ||
+                                                     ((((RE::BSLightingShaderMaterialBase*) material)->diffuseTexture &&
+                                                       (((RE::BSLightingShaderMaterialBase*) material)
+                                                            ->diffuseTexture->name.contains("\\default.dds")))))) {
+                                                    found_geo->GetFlags().reset(RE::NiAVObject::Flag::kAlwaysDraw);
+                                                    found_geo->GetFlags().set(RE::NiAVObject::Flag::kHidden);
+                                                    found_geo->GetFlags().set(RE::NiAVObject::Flag::kDisableSorting);
                                                 } else {
-                                                    found_geo->GetFlags().reset(RE::NiAVObject::Flag::kDisableSorting);
-                                                    found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
+                                                    if (overlay_culling_fix == true) {
+                                                        found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
+                                                        found_geo->GetFlags().reset(RE::NiAVObject::Flag::kDisableSorting);
+                                                        found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
+                                                    } else {
+                                                        found_geo->GetFlags().reset(RE::NiAVObject::Flag::kDisableSorting);
+                                                        found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
+                                                    }
                                                 }
                                             }
                                         }
+                                        shader_prop->SetupGeometry(geo);
+                                        shader_prop->FinishSetupGeometry(geo);
                                     }
-                                    shader_prop->SetupGeometry(geo);
-                                    shader_prop->FinishSetupGeometry(geo);
                                 }
                             }
                         }
                     }
                 }
-                obj->DecRefCount();
+                if (obj) {
+                    obj->DecRefCount();
+                }
                 if (refr) {
                     refr->DecRefCount();
                 }
