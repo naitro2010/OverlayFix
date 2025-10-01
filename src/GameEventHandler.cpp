@@ -1058,7 +1058,7 @@ namespace plugin {
                         DetourTransactionCommit();
                         */
                         SkeletonOnAttachHook = (void (*)(void* arg1, void* arg2, void* arg3, void* arg4, void* arg5, bool arg6, void* arg7,
-                                                         void* arg8))((uint64_t) skee64_info.lpBaseOfDll + 0x136150);
+                                                         void* arg8))((uint64_t) skee64_info.lpBaseOfDll + 0x1382a0);
                         DetourTransactionBegin();
                         DetourUpdateThread(GetCurrentThread());
                         DetourAttach(&(PVOID&) SkeletonOnAttachHook, &SkeletonOnAttach_fn);
