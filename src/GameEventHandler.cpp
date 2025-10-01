@@ -432,6 +432,8 @@ namespace plugin {
                                         }
                                     }
                                 }
+                            } else {
+                                logger::error("obj reference count less than 2");
                             }
                         }
                     }
@@ -544,6 +546,18 @@ namespace plugin {
                                     }
                                 }
                             }
+                            if (((RE::TESObjectREFR*) arg2)->_refCount < 2) {
+                                logger::error("obj A reference count less than 2");
+                            }
+                            if (((RE::NiAVObject*) arg5) && ((RE::NiAVObject*) arg5)->_refCount < 2) {
+                                logger::error("obj B reference count less than 2");
+                            }
+                            if (((RE::NiAVObject*) arg7) && ((RE::NiAVObject*) arg7)->_refCount < 2) {
+                                logger::error("obj C reference count less than 2");
+                            }
+                            if (((RE::NiAVObject*) arg8) && ((RE::NiAVObject*) arg8)->_refCount < 2) {
+                                logger::error("obj D reference count less than 2");
+                            }
                         }
                         if ((RE::TESObjectREFR*) arg2) {
                             ((RE::TESObjectREFR*) arg2)->DecRefCount();
@@ -619,6 +633,8 @@ namespace plugin {
                                 if (arg3 != 0x0) {
                                     if ((((RE::TESObjectREFR*) arg2)->_refCount) > 1) {
                                         ApplyMorphsHook(arg1, arg2, arg3, attaching, defer);
+                                    } else {
+                                        logger::error("obj E reference count less than 2");
                                     }
                                 }
                             }
@@ -651,6 +667,8 @@ namespace plugin {
                             if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
                                 if ((((RE::TESObjectREFR*) arg2)->_refCount) > 1) {
                                     UpdateMorphsHook(arg1, arg2, arg3);
+                                } else {
+                                    logger::error("obj F reference count less than 2");
                                 }
                             }
                         }
