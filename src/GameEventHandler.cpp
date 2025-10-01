@@ -1011,7 +1011,7 @@ namespace plugin {
                         DetourUpdateThread(GetCurrentThread());
                         DetourAttach(&(PVOID&) ApplyMorphsHook, &ApplyMorphsHook_fn);
                         DetourTransactionCommit();
-                        UpdateMorphsHook = (void (*)(void*, void*, void*))((uint64_t) skee64_info.lpBaseOfDll + 0x94b0);
+                        UpdateMorphsHook = (void (*)(void*, void*, void*))((uint64_t) skee64_info.lpBaseOfDll + 0x5e40);
                         DetourTransactionBegin();
                         DetourUpdateThread(GetCurrentThread());
                         DetourAttach(&(PVOID&) UpdateMorphsHook, &UpdateMorphsHook_fn);
@@ -1094,7 +1094,7 @@ namespace plugin {
                         DetourUpdateThread(GetCurrentThread());
                         DetourAttach(&(PVOID&) ApplyMorphsHook, &ApplyMorphsHook_fn);
                         DetourTransactionCommit();
-                        UpdateMorphsHook = (void (*)(void*, void*, void*))((uint64_t) skee64_info.lpBaseOfDll + 0x86d0);
+                        UpdateMorphsHook = (void (*)(void*, void*, void*))((uint64_t) skee64_info.lpBaseOfDll + 0x51b0);
                         DetourTransactionBegin();
                         DetourUpdateThread(GetCurrentThread());
                         DetourAttach(&(PVOID&) UpdateMorphsHook, &UpdateMorphsHook_fn);
