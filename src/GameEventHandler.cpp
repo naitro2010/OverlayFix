@@ -517,7 +517,9 @@ namespace plugin {
                                 ->As<RE::TESObjectREFR>() && ((RE::TESObjectREFR*) arg2)
                                 ->As<RE::TESObjectREFR>()
                                 ->Is3DLoaded()) {
-                            SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+                            if (arg5) {
+                                SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+                            }
                         }
                     }
                     if ((RE::TESObjectREFR*) arg2) {
@@ -527,7 +529,9 @@ namespace plugin {
                 return;
             }
         }
-        SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+        if (arg5) {
+            SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+        }
     }
     /*
     static void SetNodeTransformsHook_fn(void* arg1, uint32_t formID, uint64_t immediate, bool reset) {
@@ -576,7 +580,9 @@ namespace plugin {
                 task_int->AddTask([arg1 = arg1, arg2 = arg2, arg3 = arg3, attaching = attaching, defer = defer] {
                     if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
                         if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
-                            ApplyMorphsHook(arg1, arg2, arg3, attaching, defer);
+                            if (arg3 != 0x0) {
+                                ApplyMorphsHook(arg1, arg2, arg3, attaching, defer);
+                            }
                         }
                     }
                     if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
@@ -585,7 +591,9 @@ namespace plugin {
                 });
             }
         } else {
-            ApplyMorphsHook(arg1, arg2, arg3, attaching, defer);
+            if (arg3 != 0x0) {
+                ApplyMorphsHook(arg1, arg2, arg3, attaching, defer);
+            }
         }
     }
     static void UpdateMorphsHook_fn(void* arg1, void* arg2, void* arg3) {
@@ -609,7 +617,9 @@ namespace plugin {
                 });
             }
         } else {
-            UpdateMorphsHook(arg1, arg2, arg3);
+            if (arg2) {
+                UpdateMorphsHook(arg1, arg2, arg3);
+            }
         }
     }
 #endif
