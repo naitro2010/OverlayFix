@@ -837,16 +837,17 @@ namespace plugin {
     void GameEventHandler::onPostPostLoad() {
         mINI::INIFile file("Data\\skse\\plugins\\OverlayFix.ini");
         mINI::INIStructure ini;
+        
+        ini["OverlayFix"]["reverse"] = "default";
+        ini["OverlayFix"]["skipload"] = "false";
+        ini["OverlayFix"]["nocull"] = "default";
+        ini["OverlayFix"]["hideunusedoverlays"] = "default";
+        ini["OverlayFix"]["savedanger"] = "default";
+        ini["OverlayFix"]["vresl"] = "default";
+        ini["OverlayFix"]["parallelmorphfix"] = "default";
+        ini["OverlayFix"]["paralleltransformfix"] = "true";
+        ini["OverlayFix"]["samrimnamefix"] = "false";
         if (file.read(ini) == false) {
-            ini["OverlayFix"]["reverse"] = "default";
-            ini["OverlayFix"]["skipload"] = "false";
-            ini["OverlayFix"]["nocull"] = "default";
-            ini["OverlayFix"]["hideunusedoverlays"] = "default";
-            ini["OverlayFix"]["savedanger"] = "default";
-            ini["OverlayFix"]["vresl"] = "default";
-            ini["OverlayFix"]["parallelmorphfix"] = "default";
-            ini["OverlayFix"]["paralleltransformfix"] = "true";
-            ini["OverlayFix"]["samrimnamefix"] = "false";
         }
         file.generate(ini);
         if (ini["OverlayFix"]["hideunusedoverlays"] == "false") {
