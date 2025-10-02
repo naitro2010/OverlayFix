@@ -516,9 +516,7 @@ namespace plugin {
     static bool PARALLEL_MORPH_FIX = true;
     static bool PARALLEL_TRANSFORM_FIX = true;
     static void SkeletonOnAttach_fn(void* arg1, void* arg2, void* arg3, void* arg4, void* arg5, bool arg6, void* arg7, void* arg8) {
-        if (IS_LOADING_GAME) {
-            return;
-        }
+
         if (PARALLEL_TRANSFORM_FIX && RE::PlayerCharacter::GetSingleton() && RE::PlayerCharacter::GetSingleton()->Is3DLoaded()) {
             if (auto task_int = SKSE::GetTaskInterface()) {
                 if ((RE::TESObjectREFR*) arg2) {
@@ -1623,8 +1621,10 @@ namespace plugin {
                 auto queue_copy = std::vector<std::function<void()>>(); 
                 {
                     std::lock_guard l(morph_task_mutex);
-                    queue_copy=std::vector(morph_task_queue);
-                    morph_task_queue.clear();
+                    if (IS_LOADING_GAME == false) {
+                        queue_copy = std::vector(morph_task_queue);
+                        morph_task_queue.clear();
+                    }
                 }
                 if (queue_copy.size() == 0) {
                     std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -1652,7 +1652,10 @@ namespace plugin {
             overlayfix = new Update3DModelOverlayFix();
             SKSE::GetNiNodeUpdateEventSource()->AddEventSink<SKSE::NiNodeUpdateEvent>(overlayfix);
         }
-        IS_LOADING_GAME = false;
+        {
+            std::lock_guard l(morph_task_mutex);
+            IS_LOADING_GAME = false;
+        }
         logger::info("onNewGame()");
     }
 
@@ -1661,7 +1664,10 @@ namespace plugin {
             overlayfix = new Update3DModelOverlayFix();
             SKSE::GetNiNodeUpdateEventSource()->AddEventSink<SKSE::NiNodeUpdateEvent>(overlayfix);
         }
-        IS_LOADING_GAME = true;
+        {
+            std::lock_guard l(morph_task_mutex);
+            IS_LOADING_GAME = true;
+        }
         logger::info("onPreLoadGame()");
     }
 
@@ -1670,7 +1676,10 @@ namespace plugin {
             overlayfix = new Update3DModelOverlayFix();
             SKSE::GetNiNodeUpdateEventSource()->AddEventSink<SKSE::NiNodeUpdateEvent>(overlayfix);
         }
-        IS_LOADING_GAME = false;
+        {
+            std::lock_guard l(morph_task_mutex);
+            IS_LOADING_GAME = false;
+        }
         logger::info("onPostLoadGame()");
     }
 
