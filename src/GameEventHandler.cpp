@@ -37,6 +37,7 @@ RE::TESObjectREFR* GetUserDataFixed(RE::NiAVObject* obj) {
     return nullptr;
 }
 std::recursive_mutex morph_task_mutex;
+std::recursive_mutex loading_game_mutex;
 std::vector<std::function<void()>> morph_task_queue;
 std::optional<std::thread> morph_task_thread;
 struct Code : Xbyak::CodeGenerator {
@@ -1622,18 +1623,24 @@ namespace plugin {
             while (true) {
                 auto queue_copy = std::vector<std::function<void()>>();
                 {
-                    std::lock_guard l(morph_task_mutex);
+                    std::lock_guard lg(loading_game_mutex);
                     if (IS_LOADING_GAME == false) {
-                        queue_copy = std::vector(morph_task_queue);
-                        morph_task_queue.clear();
+                        {
+                            std::lock_guard l(morph_task_mutex);
+                            queue_copy = std::vector(morph_task_queue);
+                            morph_task_queue.clear();
+                        }
                         if (queue_copy.size() > 0) {
                             for (auto& task: queue_copy) {
                                 task();
                             }
                         }
                     } else {
-                        queue_copy = std::vector(morph_task_queue);
-                        morph_task_queue.clear();
+                        {
+                            std::lock_guard l(morph_task_mutex);
+                            queue_copy = std::vector(morph_task_queue);
+                            morph_task_queue.clear();
+                        }
                         for (auto& task: queue_copy) {
                             task();
                         }
@@ -1661,7 +1668,7 @@ namespace plugin {
             SKSE::GetNiNodeUpdateEventSource()->AddEventSink<SKSE::NiNodeUpdateEvent>(overlayfix);
         }
         {
-            std::lock_guard l(morph_task_mutex);
+            std::lock_guard lg(loading_game_mutex);
             IS_LOADING_GAME = false;
         }
         logger::info("onNewGame()");
@@ -1673,7 +1680,7 @@ namespace plugin {
             SKSE::GetNiNodeUpdateEventSource()->AddEventSink<SKSE::NiNodeUpdateEvent>(overlayfix);
         }
         {
-            std::lock_guard l(morph_task_mutex);
+            std::lock_guard lg(loading_game_mutex);
             IS_LOADING_GAME = true;
         }
         logger::info("onPreLoadGame()");
@@ -1685,7 +1692,7 @@ namespace plugin {
             SKSE::GetNiNodeUpdateEventSource()->AddEventSink<SKSE::NiNodeUpdateEvent>(overlayfix);
         }
         {
-            std::lock_guard l(morph_task_mutex);
+            std::lock_guard lg(loading_game_mutex);
             IS_LOADING_GAME = false;
         }
         logger::info("onPostLoadGame()");
