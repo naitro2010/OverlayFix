@@ -26,6 +26,16 @@ static bool do_reverse = false;
 static bool print_flags = true;
 static bool overlay_culling_fix = true;
 static bool IS_LOADING_GAME = true;
+RE::TESObjectREFR* GetUserDataFixed(RE::NiAVObject * obj) {
+    auto* userData = REL::RelocateMember<RE::TESObjectREFR*>(obj, 0x0F8, 0x110);
+    if (userData) {
+        return userData;
+    }
+    if (obj->parent) {
+        return GetUserDataFixed(obj->parent);
+    }
+    return nullptr;
+}
 std::recursive_mutex morph_task_mutex;
 std::vector<std::function<void()>> morph_task_queue;
 std::optional<std::thread> morph_task_thread;
@@ -376,9 +386,9 @@ namespace plugin {
             return;
         } else {
             obj->IncRefCount();
-            if (obj->GetUserData() && obj->GetUserData()->As<RE::TESObjectREFR>()) {
-                obj->GetUserData()->As<RE::TESObjectREFR>()->IncRefCount();
-                refr = obj->GetUserData()->As<RE::TESObjectREFR>();
+            if (GetUserDataFixed(obj) && GetUserDataFixed(obj)->As<RE::TESObjectREFR>()) {
+                GetUserDataFixed(obj)->As<RE::TESObjectREFR>()->IncRefCount();
+                refr = GetUserDataFixed(obj)->As<RE::TESObjectREFR>();
             }
         }
         SetShaderPropertyHook(obj, variant, immediate);
