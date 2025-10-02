@@ -26,7 +26,7 @@ static bool do_reverse = false;
 static bool print_flags = true;
 static bool overlay_culling_fix = true;
 static bool IS_LOADING_GAME = true;
-RE::TESObjectREFR* GetUserDataFixed(RE::NiAVObject * obj) {
+RE::TESObjectREFR* GetUserDataFixed(RE::NiAVObject* obj) {
     auto* userData = REL::RelocateMember<RE::TESObjectREFR*>(obj, 0x0F8, 0x110);
     if (userData) {
         return userData;
@@ -185,11 +185,8 @@ namespace plugin {
                             shader_prop->SetupGeometry(geo);
                             shader_prop->FinishSetupGeometry(geo);
                         }
-
                     }
-
                 }
-
             }
             return;
         }
@@ -326,10 +323,8 @@ namespace plugin {
 #ifdef SAMRIM_NAME_PATCH
     bool ddng_loaded = false;
     const char* GetFullNameHooked(RE::TESForm* form) {
-
         if (form != nullptr) {
             if (auto armor = form->As<RE::TESObjectARMO>()) {
-
                 if (ddng_loaded) {
                     if (auto inventory_armor = DeviousDevicesAPI::g_API->GetDeviceInventory(armor)) {
                         if (inventory_armor->GetName() != nullptr && inventory_armor->GetName()[0] != 0x0) {
@@ -392,9 +387,8 @@ namespace plugin {
             }
         }
         SetShaderPropertyHook(obj, variant, immediate);
-        
+
         if (auto task_int = SKSE::GetTaskInterface()) {
-            
             {
                 std::lock_guard l(morph_task_mutex);
                 morph_task_queue.push_back([obj, refr] {
@@ -526,7 +520,6 @@ namespace plugin {
     static bool PARALLEL_MORPH_FIX = true;
     static bool PARALLEL_TRANSFORM_FIX = true;
     static void SkeletonOnAttach_fn(void* arg1, void* arg2, void* arg3, void* arg4, void* arg5, bool arg6, void* arg7, void* arg8) {
-
         if (PARALLEL_TRANSFORM_FIX && RE::PlayerCharacter::GetSingleton() && RE::PlayerCharacter::GetSingleton()->Is3DLoaded()) {
             if (auto task_int = SKSE::GetTaskInterface()) {
                 if ((RE::TESObjectREFR*) arg2) {
@@ -545,8 +538,7 @@ namespace plugin {
                     std::lock_guard l(morph_task_mutex);
                     morph_task_queue.push_back([arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8] {
                         if (arg2) {
-                            if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() &&
-                                (((RE::TESObjectREFR*) arg2)->_refCount > 1) &&
+                            if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() && (((RE::TESObjectREFR*) arg2)->_refCount > 1) &&
                                 ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
                                 if (arg5) {
                                     if (((RE::NiAVObject*) arg5) && ((RE::NiAVObject*) arg5)->_refCount > 1) {
@@ -771,10 +763,11 @@ namespace plugin {
                                                  shader_prop->flags.underlying(), found_geo->GetFlags().underlying());
                                 }
                             } else {
-
-
                                 if (auto material = ((RE::BSLightingShaderMaterial*) shader_prop->material)) {
-                                    if ((material->materialAlpha < 0.0001f || ((((RE::BSLightingShaderMaterialBase*)material)->diffuseTexture && (((RE::BSLightingShaderMaterialBase*)material)->diffuseTexture->name.contains("\\default.dds")))))) {
+                                    if ((material->materialAlpha < 0.0001f ||
+                                         ((((RE::BSLightingShaderMaterialBase*) material)->diffuseTexture &&
+                                           (((RE::BSLightingShaderMaterialBase*) material)
+                                                ->diffuseTexture->name.contains("\\default.dds")))))) {
                                         found_geo->GetFlags().reset(RE::NiAVObject::Flag::kAlwaysDraw);
                                         found_geo->GetFlags().set(RE::NiAVObject::Flag::kHidden);
                                         found_geo->GetFlags().set(RE::NiAVObject::Flag::kDisableSorting);
@@ -807,7 +800,6 @@ namespace plugin {
     static bool vr_esl = true;
     static bool do_samrim_name_fix = false;
     void GameEventHandler::onPostPostLoad() {
-        
         mINI::INIFile file("Data\\skse\\plugins\\OverlayFix.ini");
         mINI::INIStructure ini;
         if (file.read(ini) == false) {
@@ -1626,22 +1618,29 @@ namespace plugin {
             logger::info("completed patching Steamdeck keyboard crash");
         }
 #endif
-        morph_task_thread = std::thread([] { 
+        morph_task_thread = std::thread([] {
             while (true) {
-                auto queue_copy = std::vector<std::function<void()>>(); 
+                auto queue_copy = std::vector<std::function<void()>>();
                 {
                     std::lock_guard l(morph_task_mutex);
                     if (IS_LOADING_GAME == false) {
                         queue_copy = std::vector(morph_task_queue);
                         morph_task_queue.clear();
+                        if (queue_copy.size() > 0) {
+                            for (auto& task: queue_copy) {
+                                task();
+                            }
+                        }
+                    } else {
+                        queue_copy = std::vector(morph_task_queue);
+                        morph_task_queue.clear();
+                        for (auto& task: queue_copy) {
+                            task();
+                        }
                     }
                 }
                 if (queue_copy.size() == 0) {
                     std::this_thread::sleep_for(std::chrono::milliseconds(1));
-                } else {
-                    for (auto& task : queue_copy) {
-                        task();
-                    }
                 }
             }
         });
@@ -1653,7 +1652,6 @@ namespace plugin {
     }
 
     void GameEventHandler::onDataLoaded() {
-
         logger::info("onDataLoaded()");
     }
 
