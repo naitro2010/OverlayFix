@@ -25,6 +25,7 @@ static bool do_hide_unused_overlays = true;
 static bool do_reverse = false;
 static bool print_flags = true;
 static bool overlay_culling_fix = true;
+static bool IS_LOADING_GAME = true;
 std::recursive_mutex morph_task_mutex;
 std::vector<std::function<void()>> morph_task_queue;
 std::optional<std::thread> morph_task_thread;
@@ -515,6 +516,9 @@ namespace plugin {
     static bool PARALLEL_MORPH_FIX = true;
     static bool PARALLEL_TRANSFORM_FIX = true;
     static void SkeletonOnAttach_fn(void* arg1, void* arg2, void* arg3, void* arg4, void* arg5, bool arg6, void* arg7, void* arg8) {
+        if (IS_LOADING_GAME) {
+            return;
+        }
         if (PARALLEL_TRANSFORM_FIX && RE::PlayerCharacter::GetSingleton() && RE::PlayerCharacter::GetSingleton()->Is3DLoaded()) {
             if (auto task_int = SKSE::GetTaskInterface()) {
                 if ((RE::TESObjectREFR*) arg2) {
@@ -540,7 +544,9 @@ namespace plugin {
                                     if (((RE::NiAVObject*) arg5) && ((RE::NiAVObject*) arg5)->_refCount > 1) {
                                         if (((RE::NiNode*) arg7) && ((RE::NiNode*) arg7)->_refCount > 1) {
                                             if (((RE::NiNode*) arg8) && ((RE::NiNode*) arg8)->_refCount > 1) {
-                                                SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+                                                if (!IS_LOADING_GAME) {
+                                                    SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+                                                }
                                             }
                                         }
                                     }
@@ -632,7 +638,9 @@ namespace plugin {
                             if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
                                 if (arg3 != 0x0) {
                                     if ((((RE::TESObjectREFR*) arg2)->_refCount) > 1) {
-                                        ApplyMorphsHook(arg1, arg2, arg3, attaching, defer);
+                                        if (!IS_LOADING_GAME) {
+                                            ApplyMorphsHook(arg1, arg2, arg3, attaching, defer);
+                                        }
                                     } else {
                                         logger::error("obj E reference count less than 2");
                                     }
@@ -647,7 +655,9 @@ namespace plugin {
             }
         } else {
             if (arg3 != 0x0) {
-                ApplyMorphsHook(arg1, arg2, arg3, attaching, defer);
+                if (!IS_LOADING_GAME) {
+                    ApplyMorphsHook(arg1, arg2, arg3, attaching, defer);
+                }
             }
         }
     }
@@ -666,7 +676,9 @@ namespace plugin {
                         if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
                             if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
                                 if ((((RE::TESObjectREFR*) arg2)->_refCount) > 1) {
-                                    UpdateMorphsHook(arg1, arg2, arg3);
+                                    if (!IS_LOADING_GAME) {
+                                        UpdateMorphsHook(arg1, arg2, arg3);
+                                    }
                                 } else {
                                     logger::error("obj F reference count less than 2");
                                 }
@@ -680,7 +692,9 @@ namespace plugin {
             }
         } else {
             if (arg2) {
-                UpdateMorphsHook(arg1, arg2, arg3);
+                if (!IS_LOADING_GAME) {
+                    UpdateMorphsHook(arg1, arg2, arg3);
+                }
             }
         }
     }
@@ -1634,26 +1648,20 @@ namespace plugin {
     }
 
     void GameEventHandler::onNewGame() {
-        {
-            std::lock_guard l(morph_task_mutex);
-            morph_task_queue.clear();
-        }
         if (overlayfix == nullptr) {
             overlayfix = new Update3DModelOverlayFix();
             SKSE::GetNiNodeUpdateEventSource()->AddEventSink<SKSE::NiNodeUpdateEvent>(overlayfix);
         }
+        IS_LOADING_GAME = false;
         logger::info("onNewGame()");
     }
 
     void GameEventHandler::onPreLoadGame() {
-        { 
-            std::lock_guard l(morph_task_mutex);
-            morph_task_queue.clear();
-        }
         if (overlayfix == nullptr) {
             overlayfix = new Update3DModelOverlayFix();
             SKSE::GetNiNodeUpdateEventSource()->AddEventSink<SKSE::NiNodeUpdateEvent>(overlayfix);
         }
+        IS_LOADING_GAME = true;
         logger::info("onPreLoadGame()");
     }
 
@@ -1662,6 +1670,7 @@ namespace plugin {
             overlayfix = new Update3DModelOverlayFix();
             SKSE::GetNiNodeUpdateEventSource()->AddEventSink<SKSE::NiNodeUpdateEvent>(overlayfix);
         }
+        IS_LOADING_GAME = false;
         logger::info("onPostLoadGame()");
     }
 
