@@ -521,71 +521,89 @@ namespace plugin {
     static bool PARALLEL_MORPH_FIX = true;
     static bool PARALLEL_TRANSFORM_FIX = true;
     static void SkeletonOnAttach_fn(void* arg1, void* arg2, void* arg3, void* arg4, void* arg5, bool arg6, void* arg7, void* arg8) {
-        if (PARALLEL_TRANSFORM_FIX && RE::PlayerCharacter::GetSingleton() && RE::PlayerCharacter::GetSingleton()->Is3DLoaded()) {
-            if (auto task_int = SKSE::GetTaskInterface()) {
-                if ((RE::TESObjectREFR*) arg2) {
-                    ((RE::TESObjectREFR*) arg2)->IncRefCount();
+        { 
+            if (!PARALLEL_TRANSFORM_FIX) {
+                return SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+            }
+
+             std::lock_guard lg(loading_game_mutex); 
+             if (IS_LOADING_GAME) {
+                if (arg5) {
+                    return SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
                 }
-                if ((RE::NiAVObject*) arg5) {
-                    ((RE::NiAVObject*) arg5)->IncRefCount();
-                }
-                if ((RE::NiNode*) arg7) {
-                    ((RE::NiNode*) arg7)->IncRefCount();
-                }
-                if ((RE::NiNode*) arg8) {
-                    ((RE::NiNode*) arg8)->IncRefCount();
-                }
-                {
-                    std::lock_guard l(morph_task_mutex);
-                    morph_task_queue.push_back([arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8] {
-                        if (arg2) {
-                            if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() && (((RE::TESObjectREFR*) arg2)->_refCount > 1) &&
-                                ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
-                                if (arg5) {
-                                    if (((RE::NiAVObject*) arg5) && ((RE::NiAVObject*) arg5)->_refCount > 1) {
-                                        if (((RE::NiNode*) arg7) && ((RE::NiNode*) arg7)->_refCount > 1) {
-                                            if (((RE::NiNode*) arg8) && ((RE::NiNode*) arg8)->_refCount > 1) {
-                                                if (!IS_LOADING_GAME) {
-                                                    SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+            
+             }
+             if (!IS_LOADING_GAME) {
+                    if (PARALLEL_TRANSFORM_FIX && RE::PlayerCharacter::GetSingleton() &&
+                        RE::PlayerCharacter::GetSingleton()->Is3DLoaded()) {
+                        if (auto task_int = SKSE::GetTaskInterface()) {
+                            if ((RE::TESObjectREFR*) arg2) {
+                                ((RE::TESObjectREFR*) arg2)->IncRefCount();
+                            }
+                            if ((RE::NiAVObject*) arg5) {
+                                ((RE::NiAVObject*) arg5)->IncRefCount();
+                            }
+                            if ((RE::NiNode*) arg7) {
+                                ((RE::NiNode*) arg7)->IncRefCount();
+                            }
+                            if ((RE::NiNode*) arg8) {
+                                ((RE::NiNode*) arg8)->IncRefCount();
+                            }
+                            {
+
+                                task_int->AddTask([arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8] {
+                                    if (arg2) {
+                                        if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() &&
+                                            (((RE::TESObjectREFR*) arg2)->_refCount > 1) &&
+                                            ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
+                                            if (arg5) {
+                                                if (((RE::NiAVObject*) arg5) && ((RE::NiAVObject*) arg5)->_refCount > 1) {
+                                                    if (((RE::NiNode*) arg7) && ((RE::NiNode*) arg7)->_refCount > 1) {
+                                                        if (((RE::NiNode*) arg8) && ((RE::NiNode*) arg8)->_refCount > 1) {
+                                                            std::lock_guard lg(loading_game_mutex); 
+                                                            if (!IS_LOADING_GAME) {
+                                                                SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+                                                            }
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
+                                        if (((RE::TESObjectREFR*) arg2)->_refCount < 2) {
+                                            logger::error("obj A reference count less than 2");
+                                        }
+                                        if (((RE::NiAVObject*) arg5) && ((RE::NiAVObject*) arg5)->_refCount < 2) {
+                                            logger::error("obj B reference count less than 2");
+                                        }
+                                        if (((RE::NiAVObject*) arg7) && ((RE::NiAVObject*) arg7)->_refCount < 2) {
+                                            logger::error("obj C reference count less than 2");
+                                        }
+                                        if (((RE::NiAVObject*) arg8) && ((RE::NiAVObject*) arg8)->_refCount < 2) {
+                                            logger::error("obj D reference count less than 2");
+                                        }
                                     }
-                                }
+                                    if ((RE::TESObjectREFR*) arg2) {
+                                        ((RE::TESObjectREFR*) arg2)->DecRefCount();
+                                    }
+                                    if ((RE::NiAVObject*) arg5) {
+                                        ((RE::NiAVObject*) arg5)->DecRefCount();
+                                    }
+                                    if ((RE::NiNode*) arg7) {
+                                        ((RE::NiNode*) arg7)->DecRefCount();
+                                    }
+                                    if ((RE::NiNode*) arg8) {
+                                        ((RE::NiNode*) arg8)->DecRefCount();
+                                    }
+                                });
                             }
-                            if (((RE::TESObjectREFR*) arg2)->_refCount < 2) {
-                                logger::error("obj A reference count less than 2");
-                            }
-                            if (((RE::NiAVObject*) arg5) && ((RE::NiAVObject*) arg5)->_refCount < 2) {
-                                logger::error("obj B reference count less than 2");
-                            }
-                            if (((RE::NiAVObject*) arg7) && ((RE::NiAVObject*) arg7)->_refCount < 2) {
-                                logger::error("obj C reference count less than 2");
-                            }
-                            if (((RE::NiAVObject*) arg8) && ((RE::NiAVObject*) arg8)->_refCount < 2) {
-                                logger::error("obj D reference count less than 2");
-                            }
+                            return;
                         }
-                        if ((RE::TESObjectREFR*) arg2) {
-                            ((RE::TESObjectREFR*) arg2)->DecRefCount();
-                        }
-                        if ((RE::NiAVObject*) arg5) {
-                            ((RE::NiAVObject*) arg5)->DecRefCount();
-                        }
-                        if ((RE::NiNode*) arg7) {
-                            ((RE::NiNode*) arg7)->DecRefCount();
-                        }
-                        if ((RE::NiNode*) arg8) {
-                            ((RE::NiNode*) arg8)->DecRefCount();
-                        }
-                    });
+                    }
                 }
-                return;
-            }
+            
         }
-        if (arg5) {
-            SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
-        }
+        
+
     }
     /*
     static void SetNodeTransformsHook_fn(void* arg1, uint32_t formID, uint64_t immediate, bool reset) {
@@ -624,6 +642,16 @@ namespace plugin {
     std::recursive_mutex apply_morphs_mutex;
 
     static void ApplyMorphsHook_fn(void* arg1, void* arg2, void* arg3, bool attaching, bool defer) {
+        if (!PARALLEL_MORPH_FIX) {
+            return ApplyMorphsHook(arg1, arg2, arg3, attaching, defer);
+        }
+        {
+            std::lock_guard lg(loading_game_mutex);
+            if (PARALLEL_MORPH_FIX && IS_LOADING_GAME) {
+                return ApplyMorphsHook(arg1, arg2, arg3, attaching, defer);
+            }
+
+        }
         if (PARALLEL_MORPH_FIX && RE::PlayerCharacter::GetSingleton() && RE::PlayerCharacter::GetSingleton()->Is3DLoaded()) {
             //logger::info("Apply Morph Defer: {}", defer);
             defer = false;
@@ -639,6 +667,7 @@ namespace plugin {
                             if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
                                 if (arg3 != 0x0) {
                                     if ((((RE::TESObjectREFR*) arg2)->_refCount) > 1) {
+                                        std::lock_guard lg(loading_game_mutex);
                                         if (!IS_LOADING_GAME) {
                                             ApplyMorphsHook(arg1, arg2, arg3, attaching, defer);
                                         }
@@ -656,45 +685,50 @@ namespace plugin {
             }
         } else {
             if (arg3 != 0x0) {
-                if (!IS_LOADING_GAME) {
-                    ApplyMorphsHook(arg1, arg2, arg3, attaching, defer);
-                }
+                 ApplyMorphsHook(arg1, arg2, arg3, attaching, defer);
             }
         }
     }
     static void UpdateMorphsHook_fn(void* arg1, void* arg2, void* arg3) {
-        if (PARALLEL_MORPH_FIX && RE::PlayerCharacter::GetSingleton() && RE::PlayerCharacter::GetSingleton()->Is3DLoaded()) {
-            //logger::info("Update Morph Defer: {}", ((uint64_t) arg3) & 0x1);
-            arg3 = (void*) 0x0;
-            //logger::info("Update Morph New Defer: {}", ((uint64_t) arg3) & 0x1);
-            if (auto task_int = SKSE::GetTaskInterface()) {
-                if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
-                    ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IncRefCount();
-                }
-                {
-                    std::lock_guard l(morph_task_mutex);
-                    morph_task_queue.push_back([arg1 = arg1, arg2 = arg2, arg3 = arg3] {
-                        if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
-                            if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
-                                if ((((RE::TESObjectREFR*) arg2)->_refCount) > 1) {
-                                    if (!IS_LOADING_GAME) {
-                                        UpdateMorphsHook(arg1, arg2, arg3);
+        if (!PARALLEL_MORPH_FIX) {
+            return UpdateMorphsHook(arg1, arg2, arg3);
+        }
+        {
+            std::lock_guard lg(loading_game_mutex);
+            if (PARALLEL_MORPH_FIX && RE::PlayerCharacter::GetSingleton() && RE::PlayerCharacter::GetSingleton()->Is3DLoaded()) {
+                //logger::info("Update Morph Defer: {}", ((uint64_t) arg3) & 0x1);
+                arg3 = (void*) 0x0;
+                //logger::info("Update Morph New Defer: {}", ((uint64_t) arg3) & 0x1);
+                if (auto task_int = SKSE::GetTaskInterface()) {
+                    if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
+                        ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IncRefCount();
+                    }
+                    {
+                        std::lock_guard l(morph_task_mutex);
+                        morph_task_queue.push_back([arg1 = arg1, arg2 = arg2, arg3 = arg3] {
+                            if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
+                                if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
+                                    if ((((RE::TESObjectREFR*) arg2)->_refCount) > 1) {
+                                        std::lock_guard lg(loading_game_mutex);
+                                        if (!IS_LOADING_GAME) {
+                                            UpdateMorphsHook(arg1, arg2, arg3);
+                                        }
+                                    } else {
+                                        logger::error("obj F reference count less than 2");
                                     }
-                                } else {
-                                    logger::error("obj F reference count less than 2");
                                 }
                             }
-                        }
-                        if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
-                            ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->DecRefCount();
-                        }
-                    });
+                            if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
+                                ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->DecRefCount();
+                            }
+                        });
+                    }
                 }
-            }
-        } else {
-            if (arg2) {
-                if (!IS_LOADING_GAME) {
-                    UpdateMorphsHook(arg1, arg2, arg3);
+            } else {
+                if (arg2) {
+                    if (!IS_LOADING_GAME) {
+                        UpdateMorphsHook(arg1, arg2, arg3);
+                    }
                 }
             }
         }
