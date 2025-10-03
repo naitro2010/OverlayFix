@@ -531,7 +531,8 @@ namespace plugin {
                 return SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
              }
              if (!IS_LOADING_GAME) {
-                 if (PARALLEL_TRANSFORM_FIX && RE::PlayerCharacter::GetSingleton() && RE::PlayerCharacter::GetSingleton()->Is3DLoaded()) {
+                 if (PARALLEL_TRANSFORM_FIX) 
+                 {
                      if ((RE::TESObjectREFR*) arg2) {
                          ((RE::TESObjectREFR*) arg2)->IncRefCount();
                      }
@@ -545,8 +546,7 @@ namespace plugin {
                          ((RE::NiNode*) arg8)->IncRefCount();
                      }
                      {
-                         std::lock_guard l(morph_task_mutex);
-                         morph_task_queue.push_back([arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8] {
+
                              if (auto task_int = SKSE::GetTaskInterface()) {
                                  task_int->AddTask([arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8] {
                                      if (arg2) {
@@ -593,7 +593,6 @@ namespace plugin {
                                      }
                                  });
                              }
-                         });
                      }
                      return;
                  }
@@ -651,7 +650,7 @@ namespace plugin {
             }
 
         }
-        if (PARALLEL_MORPH_FIX && RE::PlayerCharacter::GetSingleton() && RE::PlayerCharacter::GetSingleton()->Is3DLoaded()) {
+        if (PARALLEL_MORPH_FIX) {
             //logger::info("Apply Morph Defer: {}", defer);
             defer = true;
             //logger::info("Apply Morph New Defer: {}", defer);
@@ -694,7 +693,7 @@ namespace plugin {
         }
         {
             std::lock_guard lg(loading_game_mutex);
-            if (PARALLEL_MORPH_FIX && RE::PlayerCharacter::GetSingleton() && RE::PlayerCharacter::GetSingleton()->Is3DLoaded()) {
+            if (PARALLEL_MORPH_FIX) {
                 //logger::info("Update Morph Defer: {}", ((uint64_t) arg3) & 0x1);
                 arg3 = (void*) 0x1;
                 //logger::info("Update Morph New Defer: {}", ((uint64_t) arg3) & 0x1);
