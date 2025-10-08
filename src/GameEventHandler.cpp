@@ -650,9 +650,20 @@ namespace plugin {
                 if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
                     ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IncRefCount();
                 }
+                RE::TESObjectREFR* userdata;
+                if (arg3) {
+                    auto objarg3 = (RE::NiAVObject*)arg3;
+                    objarg3->IncRefCount();
+                    userdata = GetUserDataFixed(objarg3);
+                    if (userdata) {
+                        userdata->IncRefCount();
+                    }
+                }
                 {
                     std::lock_guard l(morph_task_mutex);
-                    morph_task_queue.push_back([arg1 = arg1, arg2 = arg2, arg3 = arg3, attaching = attaching, defer = defer] {
+                    morph_task_queue.push_back([arg1, arg2,arg3,userdata, attaching, defer] {
+                        auto objarg3 = (RE::NiAVObject*) arg3;
+                        
                         if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
                             if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
                                 if (arg3 != 0x0) {
@@ -665,6 +676,12 @@ namespace plugin {
                                         logger::error("obj E reference count less than 2");
                                     }
                                 }
+                            }
+                        }
+                        if (objarg3) {
+                            objarg3->DecRefCount();
+                            if (userdata) {
+                                userdata->DecRefCount();
                             }
                         }
                         if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
@@ -695,7 +712,7 @@ namespace plugin {
                     }
                     {
                         std::lock_guard l(morph_task_mutex);
-                        morph_task_queue.push_back([arg1 = arg1, arg2 = arg2, arg3 = arg3] {
+                        morph_task_queue.push_back([arg1, arg2, arg3] {
                             if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
                                 if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
                                     if ((((RE::TESObjectREFR*) arg2)->_refCount) > 1) {
