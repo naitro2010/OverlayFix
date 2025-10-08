@@ -387,11 +387,17 @@ namespace plugin {
                 refr = GetUserDataFixed(obj)->As<RE::TESObjectREFR>();
             }
         }
-        SetShaderPropertyHook(obj, variant, immediate);
+        immediate = true;
+        std::array<uint64_t, 4> variant_copy;
+        memcpy(&variant_copy[0], variant, 0x20);
+        
 
         if (auto task_int = SKSE::GetTaskInterface()) {
             {
-                task_int->AddTask([obj, refr] {
+                task_int->AddTask([obj, refr, variant_copy_moved = std::move(variant_copy), immediate] {
+                    if (obj) {
+                        SetShaderPropertyHook(obj, (void*) &variant_copy_moved[0], immediate);
+                    }
                     if (refr && (((RE::TESObjectREFR*) refr)->_refCount) > 1) {
                         if (obj && refr && refr->Is3DLoaded()) {
                             if (obj->_refCount > 1) {
