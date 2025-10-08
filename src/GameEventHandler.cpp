@@ -1665,13 +1665,16 @@ namespace plugin {
             while (true) {
                 auto queue_copy = std::vector<std::function<void()>>();
                 {
+                    bool loading = false;
                     {
                         std::lock_guard lg(loading_game_mutex);
                         if (IS_LOADING_GAME == true) {
-                            lg.~lock_guard();
-                            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-                            continue;
+                            loading = IS_LOADING_GAME;
                         }
+                    }
+                    if (loading) {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                        continue;
                     }
                     {
                         std::lock_guard l(morph_task_mutex);
