@@ -1681,7 +1681,7 @@ namespace plugin {
                         queue_copy = std::vector(morph_task_queue);
                         morph_task_queue.clear();
                     }
-                    for (auto& task: queue_copy) {
+                    for (auto task: queue_copy) {
                         if (auto task_int = SKSE::GetTaskInterface()) {
                             task_int->AddTask([task] { 
                                 task();
