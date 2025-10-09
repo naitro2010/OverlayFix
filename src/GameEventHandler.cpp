@@ -400,11 +400,12 @@ namespace plugin {
             {
                     std::lock_guard l(morph_task_mutex);
                     morph_task_queue.push_back([obj,refr,refrid, variant_copy_moved = std::move(variant_copy), immediate] {
-                    if (obj) {
-                        SetShaderPropertyHook(obj, (void*) &variant_copy_moved[0], immediate);
-                    }
                     auto new_refr = RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid);
-                    if (refr==new_refr) {
+                    if (refr == new_refr) {
+                        if (obj) {
+                            SetShaderPropertyHook(obj, (void*) &variant_copy_moved[0], immediate);
+                        }
+                    
                         if (obj && refr && refr->Is3DLoaded()) {
                             if (obj->_refCount > 1) {
                                 RE::BSGeometry* geo = obj->AsGeometry();
@@ -454,9 +455,9 @@ namespace plugin {
                             }
                         }
                     }
-                        if (obj) {
-                            obj->DecRefCount();
-                        }
+                    if (obj) {
+                        obj->DecRefCount();
+                    }
                 });
             }
         }
