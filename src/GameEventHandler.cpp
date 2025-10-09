@@ -376,37 +376,36 @@ namespace plugin {
     static void (*DeepCopyDetour)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
                                   uint64_t param_4) = (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
                                                                 uint64_t param_4)) 0x0;
+    static std::recursive_mutex shader_property_mutex;
     static void SetShaderProperty_fn(RE::NiAVObject* obj, void* variant, bool immediate) {
         RE::TESObjectREFR* refr = nullptr;
         RE::FormID refrid;
         if (!obj) {
             return;
         } else {
-            
+            obj->IncRefCount();
             if (GetUserDataFixed(obj) && GetUserDataFixed(obj)->As<RE::TESObjectREFR>()) {
-                obj->IncRefCount();
                 refr = GetUserDataFixed(obj)->As<RE::TESObjectREFR>();
                 refrid = refr->GetFormID();
             } else {
                 return;
             }
         }
-        immediate = true;
-        std::array<uint64_t, 4> variant_copy;
-        memcpy(&variant_copy[0], variant, 0x20);
-        
+        { 
+            std::lock_guard l(shader_property_mutex);
+            SetShaderPropertyHook(obj, (void*) variant, immediate); 
+        }
 
         if (auto task_int = SKSE::GetTaskInterface()) {
             {
                     std::lock_guard l(morph_task_mutex);
-                    morph_task_queue.push_back([obj,refr,refrid, variant_copy_moved = std::move(variant_copy), immediate] {
+                    morph_task_queue.push_back([obj,refr,refrid, immediate] {
                     auto new_refr = RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid);
-                    if (refr == new_refr) {
-                        if (obj) {
-                            SetShaderPropertyHook(obj, (void*) &variant_copy_moved[0], immediate);
-                        }
-                    
-                        if (obj && refr && refr->Is3DLoaded()) {
+                    if (!refr || refr == new_refr) {
+                        
+                        
+                        if (obj && obj->parent && refr && refr->Is3DLoaded()) {
+                            
                             if (obj->_refCount > 1) {
                                 RE::BSGeometry* geo = obj->AsGeometry();
                                 if (geo != nullptr) {
