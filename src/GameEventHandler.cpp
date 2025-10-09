@@ -658,18 +658,31 @@ namespace plugin {
                     refrform = refr->GetFormID();
                 }
                 {
-                    std::lock_guard l(morph_task_mutex);
-                    morph_task_queue.push_back([arg1, refrform,refr, attaching, defer] {
-                        if (auto new_refr = (RE::TESObjectREFR*) RE::TESObjectREFR::LookupByID<RE::TESObjectREFR>(refrform)) {
-                            if (new_refr == refr) {
-                                if (refr->Is3DLoaded()) {
-                                    auto arg3 = refr->Get3D();
-                                    ApplyMorphsHook(arg1, refr, arg3, attaching, defer);
+                    
+                    if (auto obj=(RE::NiAVObject*)arg3) {
+                        obj->IncRefCount();
+                        RE::FormID userdataform;
+                        RE::TESObjectREFR* userdata = GetUserDataFixed(obj);
+                        if (userdata) {
+                            userdataform = userdata->GetFormID();
+                        }
+                        std::lock_guard l(morph_task_mutex);
+                        morph_task_queue.push_back([arg1, refrform,refr,userdata,userdataform,arg3, attaching, defer] {
+                            if (auto new_refr = (RE::TESObjectREFR*) RE::TESObjectREFR::LookupByID<RE::TESObjectREFR>(refrform)) {
+                                if (!userdata || userdata == RE::TESObjectREFR::LookupByID<RE::TESObjectREFR>(userdataform)) {
+                                    if (new_refr == refr) {
+                                        if (refr->Is3DLoaded()) {
+                                            ApplyMorphsHook(arg1, refr, arg3, attaching, defer);
+
+                                        }
+                                    }
                                 }
                             }
-                        }
-
-                    });
+                            if (auto obj = (RE::NiAVObject*) arg3) {
+                                obj->DecRefCount();
+                            }
+                        });
+                    }
                 }
             }
         } else {
