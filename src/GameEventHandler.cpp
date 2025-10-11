@@ -939,7 +939,7 @@ namespace plugin {
             ini["OverlayFix"]["taskdelaycount"] = "60";
             ini["OverlayFix"]["taskdelaymilliseconds"] = "4";
         }
-        if (atoi(ini["OverlayFix"]["taskdelaycount"].c_str()) >= 0) {
+        if (atoi(ini["OverlayFix"]["taskdelaycount"].c_str()) > 0) {
             delay_count = atoi(ini["OverlayFix"]["taskdelaycount"].c_str());
         }
         if (atoi(ini["OverlayFix"]["taskdelaymilliseconds"].c_str()) >= 0) {
