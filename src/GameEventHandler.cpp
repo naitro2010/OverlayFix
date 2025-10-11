@@ -447,7 +447,7 @@ namespace plugin {
                             auto new_refr = RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid);
 
                             if (!refr || refr == new_refr) {
-                                if (obj && obj->parent && refr && refr->Is3DLoaded()) {
+                                if (obj && obj->parent && refr) {
                                     if (obj->_refCount > 1) {
                                         RE::BSGeometry* geo = obj->AsGeometry();
                                         if (geo != nullptr) {
@@ -583,10 +583,11 @@ namespace plugin {
             if (!PARALLEL_TRANSFORM_FIX) {
                 return SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
             }
-
-            std::lock_guard lg(loading_game_mutex);
-            if (IS_LOADING_GAME) {
-                return SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+            {
+                std::lock_guard lg(loading_game_mutex);
+                if (IS_LOADING_GAME) {
+                    return SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+                }
             }
             RE::FormID refrid;
             if (!IS_LOADING_GAME) {
@@ -611,7 +612,7 @@ namespace plugin {
                                 if (arg2 && arg2 == RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid)) {
                                     if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() &&
                                         (((RE::TESObjectREFR*) arg2)->_refCount >= 1) &&
-                                        ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
+                                        ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
                                         if (arg5) {
                                             if (((RE::NiAVObject*) arg5) && ((RE::NiAVObject*) arg5)->_refCount > 1) {
                                                 if (((RE::NiNode*) arg7) && ((RE::NiNode*) arg7)->_refCount > 1) {
@@ -731,9 +732,9 @@ namespace plugin {
                                     if (auto new_refr = (RE::TESObjectREFR*) RE::TESObjectREFR::LookupByID<RE::TESObjectREFR>(refrform)) {
                                         if (!userdata || userdata == RE::TESObjectREFR::LookupByID<RE::TESObjectREFR>(userdataform)) {
                                             if (new_refr == refr) {
-                                                if (refr->Is3DLoaded()) {
-                                                    ApplyMorphsHook(arg1, refr, arg3, attaching, defer);
-                                                }
+                                                
+                                                ApplyMorphsHook(arg1, refr, arg3, attaching, defer);
+                                                
                                             }
                                         }
                                     }
@@ -786,9 +787,9 @@ namespace plugin {
                                 if (!skip) {
                                     if (arg2 == RE::TESObjectREFR::LookupByID<RE::TESObjectREFR>(refrid)) {
                                         if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
-                                            if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
-                                                UpdateMorphsHook(arg1, arg2, arg3);
-                                            }
+                                            
+                                            UpdateMorphsHook(arg1, arg2, arg3);
+                                            
                                         }
                                     }
                                 }
