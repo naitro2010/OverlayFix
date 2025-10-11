@@ -1779,6 +1779,7 @@ namespace plugin {
                 if (queue_copy.size() == 0) {
                     std::this_thread::sleep_for(std::chrono::milliseconds(1));
                 }
+                std::this_thread::sleep_for(std::chrono::milliseconds(millisecond_delay));
             }
         });
         logger::info("onPostPostLoad()");
