@@ -903,6 +903,7 @@ namespace plugin {
     static std::atomic<uint32_t> skee_loaded = 0;
     static std::atomic<uint32_t> samrim_loaded = 0;
     static std::atomic<uint32_t> skse_loaded = 0;
+    static int delay_count = 60;
     static int millisecond_delay = 4;
     static bool save_danger = false;
     static bool skip_load = false;
@@ -921,6 +922,7 @@ namespace plugin {
         ini["OverlayFix"]["parallelmorphfix"] = "default";
         ini["OverlayFix"]["paralleltransformfix"] = "true";
         ini["OverlayFix"]["samrimnamefix"] = "false";
+        ini["OverlayFix"]["taskdelaycount"] = "60";
         ini["OverlayFix"]["taskdelaymilliseconds"] = "4";
         file.read(ini);
         if (!ini["OverlayFix"].has("version")) {
@@ -934,7 +936,11 @@ namespace plugin {
             ini["OverlayFix"]["parallelmorphfix"] = "default";
             ini["OverlayFix"]["paralleltransformfix"] = "true";
             ini["OverlayFix"]["samrimnamefix"] = "false";
+            ini["OverlayFix"]["taskdelaycount"] = "60";
             ini["OverlayFix"]["taskdelaymilliseconds"] = "4";
+        }
+        if (atoi(ini["OverlayFix"]["taskdelaycount"].c_str()) >= 0) {
+            delay_count = atoi(ini["OverlayFix"]["taskdelaycount"].c_str());
         }
         if (atoi(ini["OverlayFix"]["taskdelaymilliseconds"].c_str()) >= 0) {
             millisecond_delay = atoi(ini["OverlayFix"]["taskdelaymilliseconds"].c_str());
@@ -1767,12 +1773,19 @@ namespace plugin {
                         map_copy = std::unordered_map<MorphsTask, size_t>(morph_task_map);
                         morph_task_map.clear();
                     }
+                    size_t accumulated_tasks = 0;
                     for (auto task: queue_copy) {
                         if (auto task_int = SKSE::GetTaskInterface()) {
                             if (task.func && task.skipped == false) {
+
                                 task_int->AddTask([task] {
                                     task.func(false);
                                 });
+                                accumulated_tasks += 1;
+                                if (accumulated_tasks >= delay_count) {
+                                    std::this_thread::sleep_for(std::chrono::milliseconds(millisecond_delay));
+                                    accumulated_tasks = 0;
+                                }
                             }
                         }
                     }
@@ -1780,7 +1793,7 @@ namespace plugin {
                 if (queue_copy.size() == 0) {
                     std::this_thread::sleep_for(std::chrono::milliseconds(1));
                 }
-                std::this_thread::sleep_for(std::chrono::milliseconds(millisecond_delay));
+                
             }
         });
         logger::info("onPostPostLoad()");
