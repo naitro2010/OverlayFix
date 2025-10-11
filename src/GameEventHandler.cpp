@@ -38,7 +38,38 @@ RE::TESObjectREFR* GetUserDataFixed(RE::NiAVObject* obj) {
 }
 std::recursive_mutex morph_task_mutex;
 std::recursive_mutex loading_game_mutex;
-std::vector<std::function<void()>> morph_task_queue;
+std::vector<std::function<void()>> other_task_queue;
+enum MorphsTaskType {
+    PROPERTY,
+    APPLY,
+    UPDATE,
+    MAX
+};
+class MorphsTask {
+    public: 
+        MorphsTaskType task_type;
+        RE::FormID form_id;
+        RE::TESObjectREFR* ref;
+        RE::NiAVObject* obj;
+        std::function<void(bool skip)> func;
+        bool skipped = false;
+};
+bool operator==(const MorphsTask& lhs, const MorphsTask& rhs) {
+    return lhs.task_type == rhs.task_type && lhs.form_id == rhs.form_id && lhs.ref == rhs.ref && lhs.obj == rhs.obj && lhs.skipped == rhs.skipped;
+}
+template <>
+struct std::hash<MorphsTask> {
+        std::size_t operator()(MorphsTask const& s) const noexcept {
+            std::size_t h1 = std::hash<uint64_t>{}(s.task_type);
+            std::size_t h2 = std::hash<uint64_t>{}(s.form_id);
+            std::size_t h3 = std::hash<uint64_t>{}((uint64_t)s.ref);
+            std::size_t h4 = std::hash<uint64_t>{}((uint64_t) s.obj);
+            std::size_t h5 = std::hash<uint64_t>{}(s.skipped);
+            return h5 ^ (h1<<4) ^ (h2 << 1) ^ (h3<<2) ^ (h4<<3);
+        }
+};
+std::vector <MorphsTask> morph_task_queue;
+std::unordered_map<MorphsTask, size_t> morph_task_map;
 std::optional<std::thread> morph_task_thread;
 struct Code : Xbyak::CodeGenerator {
         Code(uint64_t offset) {
@@ -398,66 +429,85 @@ namespace plugin {
 
         if (auto task_int = SKSE::GetTaskInterface()) {
             {
-                    std::lock_guard l(morph_task_mutex);
-                    morph_task_queue.push_back([obj,refr,refrid, immediate] {
-                    auto new_refr = RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid);
-                    if (!refr || refr == new_refr) {
-                        
-                        
-                        if (obj && obj->parent && refr && refr->Is3DLoaded()) {
-                            
-                            if (obj->_refCount > 1) {
-                                RE::BSGeometry* geo = obj->AsGeometry();
-                                if (geo != nullptr) {
-                                    geo = geo;
-                                    auto found_geo = geo;
-                                    if (found_geo != nullptr && print_flags == true) {
-                                        if (obj->name.contains("[SOvl") || obj->name.contains("[Ovl")) {
-                                            if (found_geo->GetGeometryRuntimeData().properties[1]) {
-                                                auto shader_prop =
-                                                    (RE::BSLightingShaderProperty*) found_geo->GetGeometryRuntimeData().properties[1].get();
-                                                if (shader_prop != nullptr) {
-                                                    if (!do_hide_unused_overlays) {
-                                                        if (overlay_culling_fix == true) {
-                                                            found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
-                                                        }
-                                                    } else {
-                                                        if (auto material = ((RE::BSLightingShaderMaterial*) shader_prop->material)) {
-                                                            if ((material->materialAlpha < 0.0001f ||
-                                                                 ((((RE::BSLightingShaderMaterialBase*) material)->diffuseTexture &&
-                                                                   (((RE::BSLightingShaderMaterialBase*) material)
-                                                                        ->diffuseTexture->name.contains("\\default.dds")))))) {
-                                                                found_geo->GetFlags().reset(RE::NiAVObject::Flag::kAlwaysDraw);
-                                                                found_geo->GetFlags().set(RE::NiAVObject::Flag::kHidden);
-                                                                found_geo->GetFlags().set(RE::NiAVObject::Flag::kDisableSorting);
-                                                            } else {
+                std::lock_guard l(morph_task_mutex);
+                if (morph_task_map.contains(MorphsTask{PROPERTY, refrid, refr, obj,nullptr,false})) {
+                    auto task_idx = morph_task_map[MorphsTask{PROPERTY, refrid, refr, obj, nullptr,false}];
+                    auto &task = morph_task_queue.at(task_idx);
+                    
+                    if (task.func && task.skipped==false) {
+                        task.func(true);
+                    }
+                    task.skipped = true;
+
+                }
+                morph_task_queue.push_back(MorphsTask{
+                    PROPERTY, refrid, refr, obj,
+                    [obj, refr, refrid, immediate](bool skip) {
+                        if (!skip) {
+                            auto new_refr = RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid);
+
+                            if (!refr || refr == new_refr) {
+                                if (obj && obj->parent && refr && refr->Is3DLoaded()) {
+                                    if (obj->_refCount > 1) {
+                                        RE::BSGeometry* geo = obj->AsGeometry();
+                                        if (geo != nullptr) {
+                                            geo = geo;
+                                            auto found_geo = geo;
+                                            if (found_geo != nullptr && print_flags == true) {
+                                                if (obj->name.contains("[SOvl") || obj->name.contains("[Ovl")) {
+                                                    if (found_geo->GetGeometryRuntimeData().properties[1]) {
+                                                        auto shader_prop =
+                                                            (RE::BSLightingShaderProperty*) found_geo->GetGeometryRuntimeData()
+                                                                .properties[1]
+                                                                .get();
+                                                        if (shader_prop != nullptr) {
+                                                            if (!do_hide_unused_overlays) {
                                                                 if (overlay_culling_fix == true) {
                                                                     found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
-                                                                    found_geo->GetFlags().reset(RE::NiAVObject::Flag::kDisableSorting);
-                                                                    found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
-                                                                } else {
-                                                                    found_geo->GetFlags().reset(RE::NiAVObject::Flag::kDisableSorting);
-                                                                    found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
+                                                                }
+                                                            } else {
+                                                                if (auto material =
+                                                                        ((RE::BSLightingShaderMaterial*) shader_prop->material)) {
+                                                                    if ((material->materialAlpha < 0.0001f ||
+                                                                         ((((RE::BSLightingShaderMaterialBase*) material)->diffuseTexture &&
+                                                                           (((RE::BSLightingShaderMaterialBase*) material)
+                                                                                ->diffuseTexture->name.contains("\\default.dds")))))) {
+                                                                        found_geo->GetFlags().reset(RE::NiAVObject::Flag::kAlwaysDraw);
+                                                                        found_geo->GetFlags().set(RE::NiAVObject::Flag::kHidden);
+                                                                        found_geo->GetFlags().set(RE::NiAVObject::Flag::kDisableSorting);
+                                                                    } else {
+                                                                        if (overlay_culling_fix == true) {
+                                                                            found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
+                                                                            found_geo->GetFlags().reset(
+                                                                                RE::NiAVObject::Flag::kDisableSorting);
+                                                                            found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
+                                                                        } else {
+                                                                            found_geo->GetFlags().reset(
+                                                                                RE::NiAVObject::Flag::kDisableSorting);
+                                                                            found_geo->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
+                                                                        }
+                                                                    }
                                                                 }
                                                             }
+                                                            shader_prop->SetupGeometry(geo);
+                                                            shader_prop->FinishSetupGeometry(geo);
                                                         }
                                                     }
-                                                    shader_prop->SetupGeometry(geo);
-                                                    shader_prop->FinishSetupGeometry(geo);
                                                 }
                                             }
                                         }
+                                    } else {
+                                        logger::error("obj reference count less than 2");
                                     }
                                 }
-                            } else {
-                                logger::error("obj reference count less than 2");
                             }
                         }
-                    }
-                    if (obj) {
-                        obj->DecRefCount();
-                    }
-                });
+                        if (obj) {
+                            obj->DecRefCount();
+                        }
+                    },
+                    false});
+                    morph_task_map.insert_or_assign(MorphsTask{PROPERTY, refrid, refr, obj, nullptr, false}, morph_task_queue.size() - 1);
             }
         }
     }
@@ -560,7 +610,7 @@ namespace plugin {
                             task_int->AddTask([arg1, arg2,refrid, arg3, arg4, arg5, arg6, arg7, arg8] {
                                 if (arg2 && arg2 == RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid)) {
                                     if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() &&
-                                        (((RE::TESObjectREFR*) arg2)->_refCount > 1) &&
+                                        (((RE::TESObjectREFR*) arg2)->_refCount >= 1) &&
                                         ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
                                         if (arg5) {
                                             if (((RE::NiAVObject*) arg5) && ((RE::NiAVObject*) arg5)->_refCount > 1) {
@@ -652,14 +702,14 @@ namespace plugin {
             defer = false;
             //logger::info("Apply Morph New Defer: {}", defer);
             if (auto task_int = SKSE::GetTaskInterface()) {
-                RE::FormID refrform;
+                RE::FormID refrform = 0x0;
                 RE::TESObjectREFR* refr =(RE::TESObjectREFR*) arg2;
                 if (refr) {
                     refrform = refr->GetFormID();
                 }
                 {
                     
-                    if (auto obj=(RE::NiAVObject*)arg3) {
+                    if (auto obj = (RE::NiAVObject*) arg3) {
                         obj->IncRefCount();
                         RE::FormID userdataform;
                         RE::TESObjectREFR* userdata = GetUserDataFixed(obj);
@@ -667,21 +717,34 @@ namespace plugin {
                             userdataform = userdata->GetFormID();
                         }
                         std::lock_guard l(morph_task_mutex);
-                        morph_task_queue.push_back([arg1, refrform,refr,userdata,userdataform,arg3, attaching, defer] {
-                            if (auto new_refr = (RE::TESObjectREFR*) RE::TESObjectREFR::LookupByID<RE::TESObjectREFR>(refrform)) {
-                                if (!userdata || userdata == RE::TESObjectREFR::LookupByID<RE::TESObjectREFR>(userdataform)) {
-                                    if (new_refr == refr) {
-                                        if (refr->Is3DLoaded()) {
-                                            ApplyMorphsHook(arg1, refr, arg3, attaching, defer);
-
+                        if (morph_task_map.contains(MorphsTask{APPLY, refrform, refr, obj, nullptr, false})) {
+                            auto task_idx = morph_task_map[MorphsTask{APPLY, refrform, refr, obj, nullptr, false}];
+                            auto& task = morph_task_queue.at(task_idx);
+                            if (task.func && task.skipped == false) {
+                                task.func(true);
+                            }
+                            task.skipped = true;
+                        }
+                        morph_task_queue.push_back(MorphsTask{
+                                APPLY, refrform, refr, obj,[arg1, refrform, refr, userdata, userdataform, arg3, attaching, defer](bool skip) {
+                                if (!skip) {
+                                    if (auto new_refr = (RE::TESObjectREFR*) RE::TESObjectREFR::LookupByID<RE::TESObjectREFR>(refrform)) {
+                                        if (!userdata || userdata == RE::TESObjectREFR::LookupByID<RE::TESObjectREFR>(userdataform)) {
+                                            if (new_refr == refr) {
+                                                if (refr->Is3DLoaded()) {
+                                                    ApplyMorphsHook(arg1, refr, arg3, attaching, defer);
+                                                }
+                                            }
                                         }
                                     }
                                 }
-                            }
-                            if (auto obj = (RE::NiAVObject*) arg3) {
-                                obj->DecRefCount();
-                            }
+                                if (auto obj = (RE::NiAVObject*) arg3) {
+                                    obj->DecRefCount();
+                                }
+                            },false
                         });
+                        morph_task_map.insert_or_assign(MorphsTask{APPLY, refrform, refr, obj, nullptr, false},
+                                                        morph_task_queue.size() - 1);
                     }
                 }
             }
@@ -709,15 +772,30 @@ namespace plugin {
                     }
                     {
                         std::lock_guard l(morph_task_mutex);
-                        morph_task_queue.push_back([arg1,arg2, refrid, arg3] {
-                            if (arg2 == RE::TESObjectREFR::LookupByID<RE::TESObjectREFR>(refrid)) {
-                                if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
-                                    if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
-                                        UpdateMorphsHook(arg1, arg2, arg3);
+                        if (morph_task_map.contains(MorphsTask{UPDATE, refrid, (RE::TESObjectREFR*)arg2, nullptr, nullptr, false})) {
+                            auto task_idx = morph_task_map[MorphsTask{UPDATE, refrid, (RE::TESObjectREFR*) arg2, nullptr, nullptr, false}];
+                            auto& task = morph_task_queue.at(task_idx);
+                            if (task.func && task.skipped == false) {
+                                task.func(true);
+                            }
+                            task.skipped = true;
+                        }
+                        morph_task_queue.push_back(
+                            MorphsTask{UPDATE, refrid, (RE::TESObjectREFR*) arg2, nullptr,
+                            [arg1, arg2, refrid, arg3](bool skip) {
+                                if (!skip) {
+                                    if (arg2 == RE::TESObjectREFR::LookupByID<RE::TESObjectREFR>(refrid)) {
+                                        if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
+                                            if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
+                                                UpdateMorphsHook(arg1, arg2, arg3);
+                                            }
+                                        }
                                     }
                                 }
-                            }
-                        });
+                            },
+                            false});
+                        morph_task_map.insert_or_assign(MorphsTask{UPDATE, refrid, (RE::TESObjectREFR*) arg2, nullptr, nullptr, false},
+                                                        morph_task_queue.size() - 1);
                     }
                 }
             } else {
@@ -1667,7 +1745,8 @@ namespace plugin {
 #endif
         morph_task_thread = std::thread([] {
             while (true) {
-                auto queue_copy = std::vector<std::function<void()>>();
+                std::vector<MorphsTask> queue_copy;
+                std::unordered_map<MorphsTask, size_t> map_copy;
                 {
                     bool loading = false;
                     {
@@ -1677,20 +1756,23 @@ namespace plugin {
                         }
                     }
                     if (loading) {
-                        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                        std::this_thread::sleep_for(std::chrono::milliseconds(100));
                         continue;
                     }
                     {
                         std::lock_guard l(morph_task_mutex);
-                        queue_copy = std::vector(morph_task_queue);
+                        queue_copy = std::vector<MorphsTask>(morph_task_queue);
                         morph_task_queue.clear();
+                        map_copy = std::unordered_map<MorphsTask, size_t>(morph_task_map);
+                        morph_task_map.clear();
                     }
                     for (auto task: queue_copy) {
                         if (auto task_int = SKSE::GetTaskInterface()) {
-                            task_int->AddTask([task] { 
-                                task();
-                            });
-                            std::this_thread::sleep_for(std::chrono::milliseconds(millisecond_delay));
+                            if (task.func && task.skipped == false) {
+                                task_int->AddTask([task] {
+                                    task.func(false);
+                                });
+                            }
                         }
                     }
                 }
