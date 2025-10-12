@@ -414,6 +414,10 @@ namespace plugin {
         if (!obj) {
             return;
         } else {
+            {
+                std::lock_guard l(shader_property_mutex);
+                SetShaderPropertyHook(obj, (void*) variant, immediate);
+            }
             obj->IncRefCount();
             if (GetUserDataFixed(obj) && GetUserDataFixed(obj)->As<RE::TESObjectREFR>()) {
                 refr = GetUserDataFixed(obj)->As<RE::TESObjectREFR>();
@@ -422,10 +426,7 @@ namespace plugin {
                 return;
             }
         }
-        { 
-            std::lock_guard l(shader_property_mutex);
-            SetShaderPropertyHook(obj, (void*) variant, immediate); 
-        }
+
 
         if (auto task_int = SKSE::GetTaskInterface()) {
             {
