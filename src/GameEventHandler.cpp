@@ -160,9 +160,12 @@ namespace plugin {
             }
         }
 
-        if (CurrentObject->name.contains("[Ovl")) {
+        if (CurrentObject->name.contains("[Ovl") || CurrentObject->name.contains("[ovl")) {
             unsigned long index = 256;
             size_t offset = std::string(CurrentObject->name.c_str()).find_last_of("Ovl", CurrentObject->name.size()) + 1;
+            if (offset >= CurrentObject->name.size()) {
+                offset = std::string(CurrentObject->name.c_str()).find_last_of("ovl", CurrentObject->name.size()) + 1;
+            }
             if (offset < CurrentObject->name.size() && ((CurrentObject->name.size() - offset) - 1) > 0) {
                 std::string overlay_index_str =
                     std::string(CurrentObject->name.c_str()).substr(offset, ((CurrentObject->name.size() - offset) - 1));
@@ -222,9 +225,13 @@ namespace plugin {
             }
             return;
         }
-        if (CurrentObject->name.contains("[SOvl")) {
+        if (CurrentObject->name.contains("[SOvl") || CurrentObject->name.contains("[sovl")) {
             unsigned long index = 256;
             size_t offset = std::string(CurrentObject->name.c_str()).find_last_of("Ovl", CurrentObject->name.size()) + 1;
+            if (offset >= CurrentObject->name.size()) {
+                offset = std::string(CurrentObject->name.c_str()).find_last_of("ovl", CurrentObject->name.size()) + 1;
+            }
+
             if (offset < CurrentObject->name.size() && ((CurrentObject->name.size() - offset) - 1) > 0) {
                 std::string overlay_index_str =
                     std::string(CurrentObject->name.c_str()).substr(offset, ((CurrentObject->name.size() - offset) - 1));
@@ -456,7 +463,9 @@ namespace plugin {
                                             geo = geo;
                                             auto found_geo = geo;
                                             if (found_geo != nullptr && print_flags == true) {
-                                                if (obj->name.contains("[SOvl") || obj->name.contains("[Ovl")) {
+                                                if (obj->name.contains("[SOvl") || obj->name.contains("[Ovl") ||
+                                                    obj->name.contains("[Sovl") || obj->name.contains("[ovl") ||
+                                                    obj->name.contains("[sovl")) {
                                                     if (found_geo->GetGeometryRuntimeData().properties[1]) {
                                                         auto shader_prop =
                                                             (RE::BSLightingShaderProperty*) found_geo->GetGeometryRuntimeData()
