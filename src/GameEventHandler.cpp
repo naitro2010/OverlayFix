@@ -423,6 +423,7 @@ namespace plugin {
                 refr = GetUserDataFixed(obj)->As<RE::TESObjectREFR>();
                 refrid = refr->GetFormID();
             } else {
+                obj->DecRefCount();
                 return;
             }
         }
