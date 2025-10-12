@@ -605,6 +605,7 @@ namespace plugin {
                 if (PARALLEL_TRANSFORM_FIX) {
                     if ((RE::TESObjectREFR*) arg2) {
                         refrid=((RE::TESObjectREFR*) arg2)->GetFormID();
+
                     } else {
                         return;
                     }
@@ -623,12 +624,14 @@ namespace plugin {
                                 if (arg2 && arg2 == RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid)) {
                                     if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() &&
                                         (((RE::TESObjectREFR*) arg2)->_refCount >= 1) &&
-                                        ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
+                                        ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
                                         if (arg5) {
-                                            if (((RE::NiAVObject*) arg5) && ((RE::NiAVObject*) arg5)->_refCount > 1) {
-                                                if (((RE::NiNode*) arg7) && ((RE::NiNode*) arg7)->_refCount > 1) {
-                                                    if (((RE::NiNode*) arg8) && ((RE::NiNode*) arg8)->_refCount > 1) {
-
+                                            if (((RE::NiAVObject*) arg5) && ((RE::NiAVObject*) arg5)->_refCount > 1 &&
+                                                ((RE::NiAVObject*) arg5)->parent) {
+                                                if (((RE::NiNode*) arg7) && ((RE::NiNode*) arg7)->_refCount > 1 &&
+                                                    ((RE::NiNode*) arg7)->parent) {
+                                                    if (((RE::NiNode*) arg8) && ((RE::NiNode*) arg8)->_refCount > 1 &&
+                                                        ((RE::NiNode*) arg8)->parent) {
                                                         SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
 
                                                     }
