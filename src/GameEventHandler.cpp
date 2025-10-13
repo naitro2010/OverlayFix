@@ -423,7 +423,11 @@ namespace plugin {
         } else {
             {
                 std::lock_guard l(shader_property_mutex);
-                SetShaderPropertyHook(obj, (void*) variant, immediate, arg4);
+                if (GetCurrentThreadId() == RE::Main::GetSingleton()->threadID) {
+                    SetShaderPropertyHook(obj, (void*) variant, immediate, arg4);
+                } else {
+                    SetShaderPropertyHook(obj, (void*) variant, false, arg4);
+                }
             }
             obj->IncRefCount();
             if (GetUserDataFixed(obj) && GetUserDataFixed(obj)->As<RE::TESObjectREFR>()) {
