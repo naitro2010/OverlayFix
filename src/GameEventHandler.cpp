@@ -421,6 +421,8 @@ namespace plugin {
         if (!obj) {
             return;
         } else {
+            obj->IncRefCount();
+            if (obj->_refCount>1)
             {
                 std::lock_guard l(shader_property_mutex);
                 if (GetCurrentThreadId() == RE::Main::GetSingleton()->threadID) {
@@ -429,7 +431,7 @@ namespace plugin {
                     SetShaderPropertyHook(obj, (void*) variant, false, arg4);
                 }
             }
-            obj->IncRefCount();
+            
             if (GetUserDataFixed(obj) && GetUserDataFixed(obj)->As<RE::TESObjectREFR>()) {
                 refr = GetUserDataFixed(obj)->As<RE::TESObjectREFR>();
                 refrid = refr->GetFormID();
@@ -872,7 +874,27 @@ namespace plugin {
                 logger::info("Found incorrect geometry type for overlays, removal complete");
             }
         }
-        InstallOverlayHook(inter, param_2, param_3, param_4, geo, param_5, param_6);
+        if (found_geo) {
+            if (geo) {
+                geo->IncRefCount();
+            }
+            if (param_5) {
+                param_5->IncRefCount();
+            }
+            if (found_geo) {
+                found_geo->IncRefCount();
+            }
+            InstallOverlayHook(inter, param_2, param_3, param_4, geo, param_5, param_6);
+            if (geo) {
+                geo->DecRefCount();
+            }
+            if (param_5) {
+                param_5->DecRefCount();
+            }
+            if (found_geo) {
+                found_geo->DecRefCount();
+            }
+        }
         if (param_5) {
             if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(geometry_node_name)) {
                 found_geo = found_geometry->AsGeometry();
