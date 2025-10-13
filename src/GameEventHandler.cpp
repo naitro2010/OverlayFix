@@ -387,7 +387,7 @@ namespace plugin {
     }
 #endif
     static SKEENullFix* nullSkeletonFix;
-    static auto SetShaderPropertyHook = (void (*)(RE::NiAVObject* obj, void* variant, bool immediate)) 0x0;
+    static auto SetShaderPropertyHook = (void (*)(RE::NiAVObject* obj, void* variant, bool immediate, uint64_t arg4)) 0x0;
     static void (*SteamdeckVirtualKeyboardCallback)(uint64_t param_1, char* param_2) = (void (*)(uint64_t param_1, char* param_2)) 0x0;
     static void (*SteamdeckVirtualKeyboardCallback2)(uint64_t param_1, char* param_2) = (void (*)(uint64_t param_1, char* param_2)) 0x0;
     static void (*OverlayHook)(void* inter, uint32_t param_2, uint32_t param_3, RE::TESObjectREFR* param_4, RE::NiNode* param_5,
@@ -415,7 +415,7 @@ namespace plugin {
                                   uint64_t param_4) = (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
                                                                 uint64_t param_4)) 0x0;
     static std::recursive_mutex shader_property_mutex;
-    static void SetShaderProperty_fn(RE::NiAVObject* obj, void* variant, bool immediate) {
+    static void SetShaderProperty_fn(RE::NiAVObject* obj, void* variant, bool immediate, uint64_t arg4) {
         RE::TESObjectREFR* refr = nullptr;
         RE::FormID refrid;
         if (!obj) {
@@ -423,7 +423,7 @@ namespace plugin {
         } else {
             {
                 std::lock_guard l(shader_property_mutex);
-                SetShaderPropertyHook(obj, (void*) variant, immediate);
+                SetShaderPropertyHook(obj, (void*) variant, immediate, arg4);
             }
             obj->IncRefCount();
             if (GetUserDataFixed(obj) && GetUserDataFixed(obj)->As<RE::TESObjectREFR>()) {
@@ -1057,7 +1057,7 @@ namespace plugin {
 
 #endif
                     SetShaderPropertyHook =
-                        (void (*)(RE::NiAVObject* obj, void* variant, bool immediate))((uint64_t) skee64_info.lpBaseOfDll + 0x127e70);
+                        (void (*)(RE::NiAVObject* obj, void* variant, bool immediate, uint64_t arg4))((uint64_t) skee64_info.lpBaseOfDll + 0x127e70);
                     DetourTransactionBegin();
                     DetourUpdateThread(GetCurrentThread());
                     DetourAttach(&(PVOID&) SetShaderPropertyHook, &SetShaderProperty_fn);
@@ -1170,8 +1170,8 @@ namespace plugin {
                     }
 
 #endif
-                    SetShaderPropertyHook =
-                        (void (*)(RE::NiAVObject* obj, void* variant, bool immediate))((uint64_t) skee64_info.lpBaseOfDll + 0x12ceb0);
+                    SetShaderPropertyHook = (void (*)(RE::NiAVObject* obj, void* variant, bool immediate, uint64_t arg4))(
+                        (uint64_t) skee64_info.lpBaseOfDll + 0x12ceb0);
                     DetourTransactionBegin();
                     DetourUpdateThread(GetCurrentThread());
                     DetourAttach(&(PVOID&) SetShaderPropertyHook, &SetShaderProperty_fn);
@@ -1270,8 +1270,8 @@ namespace plugin {
                         DetourTransactionCommit();
                         logger::info("SKEE64 UBE2 morphcache shrink workaround applied");
 #endif
-                        SetShaderPropertyHook =
-                            (void (*)(RE::NiAVObject* obj, void* variant, bool immediate))((uint64_t) skee64_info.lpBaseOfDll + 0xd46f0);
+                        SetShaderPropertyHook = (void (*)(RE::NiAVObject* obj, void* variant, bool immediate, uint64_t arg4))(
+                            (uint64_t) skee64_info.lpBaseOfDll + 0xd46f0);
                         DetourTransactionBegin();
                         DetourUpdateThread(GetCurrentThread());
                         DetourAttach(&(PVOID&) SetShaderPropertyHook, &SetShaderProperty_fn);
@@ -1384,8 +1384,8 @@ namespace plugin {
                             DetourTransactionCommit();
                             logger::info("SKEE64 1597 parallel transform workaround applied");
                         }
-                        SetShaderPropertyHook =
-                            (void (*)(RE::NiAVObject* obj, void* variant, bool immediate))((uint64_t) skee64_info.lpBaseOfDll + 0xd0e20);
+                        SetShaderPropertyHook = (void (*)(RE::NiAVObject* obj, void* variant, bool immediate, uint64_t arg4))(
+                            (uint64_t) skee64_info.lpBaseOfDll + 0xd0e20);
                         DetourTransactionBegin();
                         DetourUpdateThread(GetCurrentThread());
                         DetourAttach(&(PVOID&) SetShaderPropertyHook, &SetShaderProperty_fn);
@@ -1464,8 +1464,8 @@ namespace plugin {
                     DetourTransactionCommit();
                     logger::info("SKEE64 041914 crash fix 2 applied");
 #endif
-                    SetShaderPropertyHook =
-                        (void (*)(RE::NiAVObject* obj, void* variant, bool immediate))((uint64_t) skee64_info.lpBaseOfDll + 0xdcf60);
+                    SetShaderPropertyHook = (void (*)(RE::NiAVObject* obj, void* variant, bool immediate, uint64_t arg4))(
+                        (uint64_t) skee64_info.lpBaseOfDll + 0xdcf60);
                     DetourTransactionBegin();
                     DetourUpdateThread(GetCurrentThread());
                     DetourAttach(&(PVOID&) SetShaderPropertyHook, &SetShaderProperty_fn);
@@ -1593,8 +1593,8 @@ namespace plugin {
                     }
 
 #endif
-                    SetShaderPropertyHook =
-                        (void (*)(RE::NiAVObject* obj, void* variant, bool immediate))((uint64_t) skee64_info.lpBaseOfDll + 0xcd460);
+                    SetShaderPropertyHook = (void (*)(RE::NiAVObject* obj, void* variant, bool immediate, uint64_t arg4))(
+                        (uint64_t) skee64_info.lpBaseOfDll + 0xcd460);
                     DetourTransactionBegin();
                     DetourUpdateThread(GetCurrentThread());
                     DetourAttach(&(PVOID&) SetShaderPropertyHook, &SetShaderProperty_fn);
@@ -1634,8 +1634,8 @@ namespace plugin {
                         DetourTransactionCommit();
                         logger::info("SKEEVR 0p5 parallel transform workaround applied");
                     }
-                    SetShaderPropertyHook =
-                        (void (*)(RE::NiAVObject* obj, void* variant, bool immediate))((uint64_t) skee64_info.lpBaseOfDll + 0xd5950);
+                    SetShaderPropertyHook = (void (*)(RE::NiAVObject* obj, void* variant, bool immediate, uint64_t arg4))(
+                        (uint64_t) skee64_info.lpBaseOfDll + 0xd5950);
                     DetourTransactionBegin();
                     DetourUpdateThread(GetCurrentThread());
                     DetourAttach(&(PVOID&) SetShaderPropertyHook, &SetShaderProperty_fn);
