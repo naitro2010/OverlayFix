@@ -784,6 +784,10 @@ namespace plugin {
                                             UpdateMorphsHook(arg1, arg2, arg3);
                                             
                                         }
+                                    } else {
+                                        if (auto new_refr = RE::TESObjectREFR::LookupByID<RE::TESObjectREFR>(refrid)) {
+                                            UpdateMorphsHook(arg1, new_refr, arg3);
+                                        }
                                     }
                                 }
                             },
