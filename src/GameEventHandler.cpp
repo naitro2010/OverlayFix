@@ -421,8 +421,7 @@ namespace plugin {
         if (!obj) {
             return;
         } else {
-            obj->IncRefCount();
-            if (obj->_refCount>1)
+            if (obj->_refCount>0 && obj->parent != nullptr)
             {
                 std::lock_guard l(shader_property_mutex);
                 if (GetCurrentThreadId() == RE::Main::GetSingleton()->threadID) {
@@ -436,7 +435,6 @@ namespace plugin {
                 refr = GetUserDataFixed(obj)->As<RE::TESObjectREFR>();
                 refrid = refr->GetFormID();
             } else {
-                obj->DecRefCount();
                 return;
             }
         }
@@ -463,7 +461,7 @@ namespace plugin {
 
                             if (!refr || refr == new_refr) {
                                 if (obj && obj->parent && refr) {
-                                    if (obj->_refCount > 1) {
+                                    if (obj->_refCount > 0) {
                                         RE::BSGeometry* geo = obj->AsGeometry();
                                         if (geo != nullptr) {
                                             geo = geo;
@@ -518,9 +516,6 @@ namespace plugin {
                                     }
                                 }
                             }
-                        }
-                        if (obj) {
-                            obj->DecRefCount();
                         }
                     },
                     false});
@@ -615,15 +610,6 @@ namespace plugin {
                     } else {
                         return;
                     }
-                    if ((RE::NiAVObject*) arg5) {
-                        ((RE::NiAVObject*) arg5)->IncRefCount();
-                    }
-                    if ((RE::NiNode*) arg7) {
-                        ((RE::NiNode*) arg7)->IncRefCount();
-                    }
-                    if ((RE::NiNode*) arg8) {
-                        ((RE::NiNode*) arg8)->IncRefCount();
-                    }
                     {
                         if (auto task_int = SKSE::GetTaskInterface()) {
                             task_int->AddTask([arg1, arg2,refrid, arg3, arg4, arg5, arg6, arg7, arg8] {
@@ -632,11 +618,11 @@ namespace plugin {
                                         (((RE::TESObjectREFR*) arg2)->_refCount >= 1) &&
                                         ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
                                         if (arg5) {
-                                            if (((RE::NiAVObject*) arg5) && ((RE::NiAVObject*) arg5)->_refCount > 1 &&
+                                            if (((RE::NiAVObject*) arg5) && ((RE::NiAVObject*) arg5)->_refCount >= 1 &&
                                                 ((RE::NiAVObject*) arg5)->parent) {
-                                                if (((RE::NiNode*) arg7) && ((RE::NiNode*) arg7)->_refCount > 1 &&
+                                                if (((RE::NiNode*) arg7) && ((RE::NiNode*) arg7)->_refCount >= 1 &&
                                                     ((RE::NiNode*) arg7)->parent) {
-                                                    if (((RE::NiNode*) arg8) && ((RE::NiNode*) arg8)->_refCount > 1 &&
+                                                    if (((RE::NiNode*) arg8) && ((RE::NiNode*) arg8)->_refCount >= 1 &&
                                                         ((RE::NiNode*) arg8)->parent) {
                                                         SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
 
@@ -645,24 +631,15 @@ namespace plugin {
                                             }
                                         }
                                     }
-                                    if (((RE::NiAVObject*) arg5) && ((RE::NiAVObject*) arg5)->_refCount < 2) {
+                                    if (((RE::NiAVObject*) arg5) && ((RE::NiAVObject*) arg5)->_refCount < 1) {
                                         logger::error("obj B reference count less than 2");
                                     }
-                                    if (((RE::NiAVObject*) arg7) && ((RE::NiAVObject*) arg7)->_refCount < 2) {
+                                    if (((RE::NiAVObject*) arg7) && ((RE::NiAVObject*) arg7)->_refCount < 1) {
                                         logger::error("obj C reference count less than 2");
                                     }
-                                    if (((RE::NiAVObject*) arg8) && ((RE::NiAVObject*) arg8)->_refCount < 2) {
+                                    if (((RE::NiAVObject*) arg8) && ((RE::NiAVObject*) arg8)->_refCount < 1) {
                                         logger::error("obj D reference count less than 2");
                                     }
-                                }
-                                if ((RE::NiAVObject*) arg5) {
-                                    ((RE::NiAVObject*) arg5)->DecRefCount();
-                                }
-                                if ((RE::NiNode*) arg7) {
-                                    ((RE::NiNode*) arg7)->DecRefCount();
-                                }
-                                if ((RE::NiNode*) arg8) {
-                                    ((RE::NiNode*) arg8)->DecRefCount();
                                 }
                             });
                         }
@@ -731,7 +708,6 @@ namespace plugin {
                 {
                     
                     if (auto obj = (RE::NiAVObject*) arg3) {
-                        obj->IncRefCount();
                         RE::FormID userdataform;
                         RE::TESObjectREFR* userdata = GetUserDataFixed(obj);
                         if (userdata) {
@@ -758,9 +734,6 @@ namespace plugin {
                                             }
                                         }
                                     }
-                                }
-                                if (auto obj = (RE::NiAVObject*) arg3) {
-                                    obj->DecRefCount();
                                 }
                             },false
                         });
@@ -874,28 +847,10 @@ namespace plugin {
                 logger::info("Found incorrect geometry type for overlays, removal complete");
             }
         }
-        if (found_geo) {
-            if (geo) {
-                geo->IncRefCount();
-            }
-            if (param_5) {
-                param_5->IncRefCount();
-            }
-            if (found_geo) {
-                found_geo->IncRefCount();
-            }
+        if (geo) {
             InstallOverlayHook(inter, param_2, param_3, param_4, geo, param_5, param_6);
-            if (geo) {
-                geo->DecRefCount();
-            }
-            if (param_5) {
-                param_5->DecRefCount();
-            }
-            if (found_geo) {
-                found_geo->DecRefCount();
-            }
         }
-        if (param_5) {
+        if (param_5 && geo) {
             if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(geometry_node_name)) {
                 found_geo = found_geometry->AsGeometry();
                 if (found_geo != nullptr && print_flags == true) {
