@@ -413,7 +413,7 @@ namespace plugin {
     static std::recursive_mutex shader_property_mutex;
     static void SetShaderProperty_fn(RE::NiAVObject* obj, void* variant, bool immediate, uint64_t arg4) {
         RE::TESObjectREFR* refr = nullptr;
-        RE::FormID refrid;
+        RE::FormID refrid(0xFFFFFFFF);
         if (!obj) {
             return;
         } else {
@@ -429,7 +429,7 @@ namespace plugin {
                 refr = GetUserDataFixed(obj)->As<RE::TESObjectREFR>();
                 refrid = refr->GetFormID();
             } else {
-                return;
+                logger::warn("shader property obj has no reference");
             }
         }
 
@@ -449,10 +449,12 @@ namespace plugin {
                     PROPERTY, refrid, refr, obj,
                     [obj, refr, refrid, immediate](bool skip) {
                         if (!skip) {
-                            auto new_refr = RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid);
-
+                            auto new_refr = (RE::TESObjectREFR*) nullptr;
+                            if (refr) {
+                                 new_refr = RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid);
+                            }
                             if (!refr || refr == new_refr) {
-                                if (obj && obj->parent && refr) {
+                                if (obj && obj->parent) {
                                     if (obj->_refCount > 0) {
                                         RE::BSGeometry* geo = obj->AsGeometry();
                                         if (geo != nullptr) {
