@@ -46,11 +46,12 @@ class MorphsTask {
         RE::FormID form_id;
         RE::TESObjectREFR* ref;
         RE::NiAVObject* obj;
+        RE::NiAVObject* obj_parent;
         std::function<void(bool skip)> func;
         bool skipped = false;
 };
 bool operator==(const MorphsTask& lhs, const MorphsTask& rhs) {
-    return lhs.task_type == rhs.task_type && lhs.form_id == rhs.form_id && lhs.ref == rhs.ref && lhs.obj == rhs.obj &&
+    return lhs.task_type == rhs.task_type && lhs.form_id == rhs.form_id && lhs.ref == rhs.ref && lhs.obj == rhs.obj && lhs.obj_parent == rhs.obj_parent &&
            lhs.skipped == rhs.skipped;
 }
 template <>
@@ -60,8 +61,9 @@ struct std::hash<MorphsTask> {
             std::size_t h2 = std::hash<uint64_t>{}(s.form_id);
             std::size_t h3 = std::hash<uint64_t>{}((uint64_t) s.ref);
             std::size_t h4 = std::hash<uint64_t>{}((uint64_t) s.obj);
-            std::size_t h5 = std::hash<uint64_t>{}(s.skipped);
-            return h5 ^ (h1 << 4) ^ (h2 << 1) ^ (h3 << 2) ^ (h4 << 3);
+            std::size_t h5 = std::hash<uint64_t>{}((uint64_t) s.obj_parent);
+            std::size_t h6 = std::hash<uint64_t>{}(s.skipped);
+            return h5 ^ (h1 << 4) ^ (h2 << 1) ^ (h3 << 2) ^ (h4 << 3) ^ (h6 << 4);
         }
 };
 std::vector<MorphsTask> morph_task_queue;
@@ -432,12 +434,15 @@ namespace plugin {
                 logger::warn("shader property obj has no reference");
             }
         }
-
+        if (obj->parent == nullptr) {
+            logger::warn("shader property obj has no parent node");
+        }
+        auto obj_parent = obj->parent;
         if (auto task_int = SKSE::GetTaskInterface()) {
             {
                 std::lock_guard l(morph_task_mutex);
-                if (morph_task_map.contains(MorphsTask{PROPERTY, refrid, refr, obj, nullptr, false})) {
-                    auto task_idx = morph_task_map[MorphsTask{PROPERTY, refrid, refr, obj, nullptr, false}];
+                if (morph_task_map.contains(MorphsTask{PROPERTY, refrid, refr, obj, obj_parent, nullptr, false})) {
+                    auto task_idx = morph_task_map[MorphsTask{PROPERTY, refrid, refr, obj, obj_parent, nullptr, false}];
                     auto& task = morph_task_queue.at(task_idx);
 
                     if (task.func && task.skipped == false) {
@@ -446,15 +451,15 @@ namespace plugin {
                     task.skipped = true;
                 }
                 morph_task_queue.push_back(MorphsTask{
-                    PROPERTY, refrid, refr, obj,
-                    [obj, refr, refrid, immediate](bool skip) {
+                    PROPERTY, refrid, refr, obj, obj_parent,
+                    [obj, obj_parent, refr, refrid, immediate](bool skip) {
                         if (!skip) {
                             auto new_refr = (RE::TESObjectREFR*) nullptr;
                             if (refr) {
-                                 new_refr = RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid);
+                                new_refr = RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid);
                             }
                             if (!refr || refr == new_refr) {
-                                if (obj && obj->parent) {
+                                if (obj && obj->parent && obj->parent==obj_parent) {
                                     if (obj->_refCount > 0) {
                                         RE::BSGeometry* geo = obj->AsGeometry();
                                         if (geo != nullptr) {
@@ -513,7 +518,8 @@ namespace plugin {
                         }
                     },
                     false});
-                morph_task_map.insert_or_assign(MorphsTask{PROPERTY, refrid, refr, obj, nullptr, false}, morph_task_queue.size() - 1);
+                morph_task_map.insert_or_assign(MorphsTask{PROPERTY, refrid, refr, obj, obj_parent, nullptr, false},
+                                                morph_task_queue.size() - 1);
             }
         }
     }
@@ -613,7 +619,6 @@ namespace plugin {
                     if ((RE::NiAVObject*) arg5) {
                         if (auto arg5r = GetUserDataFixed((RE::NiAVObject*) arg5)) {
                             arg5refr = arg5r;
-                            ((RE::NiAVObject*) arg5)->IncRefCount();
                             arg5ID = arg5refr->GetFormID();
                         } else {
                             logger::error("No User Data for OBJ 5");
@@ -622,7 +627,6 @@ namespace plugin {
                     if ((RE::NiNode*) arg7) {
                         if (auto arg7r = GetUserDataFixed((RE::NiAVObject*) arg7)) {
                             arg7refr = arg7r;
-                            ((RE::NiAVObject*) arg7)->IncRefCount();
                             arg7ID = arg7refr->GetFormID();
                         } else {
                             logger::error("No User Data for OBJ 7");
@@ -631,9 +635,8 @@ namespace plugin {
                     if ((RE::NiNode*) arg8) {
                         if (auto arg8r = GetUserDataFixed((RE::NiAVObject*) arg8)) {
                             arg8refr = arg8r;
-                            ((RE::NiAVObject*) arg8)->IncRefCount();
                             arg8ID = arg8refr->GetFormID();
-                            
+
                         } else {
                             logger::error("No User Data for OBJ 8");
                         }
@@ -645,35 +648,22 @@ namespace plugin {
                                     if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() &&
                                         (((RE::TESObjectREFR*) arg2)->_refCount >= 1) &&
                                         ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
-                                        if (!arg5refr || arg5refr==RE::TESForm::LookupByID<RE::TESObjectREFR>(arg5ID)) {
+                                        if (!arg5refr || arg5refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg5ID)) {
                                             if (!arg7refr || arg7refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg7ID)) {
                                                 if (!arg8refr || arg8refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg8ID)) {
-                                                    SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+                                                    if (!arg5 || (((RE::NiAVObject*) arg5)->_refCount > 0 &&
+                                                        GetUserDataFixed(((RE::NiAVObject*) arg5)) == arg5refr)) {
+                                                        if (!arg7 || (((RE::NiAVObject*) arg7)->_refCount > 0 &&
+                                                            GetUserDataFixed(((RE::NiAVObject*) arg7)) == arg7refr)) {
+                                                            if (!arg8 || (((RE::NiAVObject*) arg8)->_refCount > 0 &&
+                                                                GetUserDataFixed(((RE::NiAVObject*) arg8)) == arg8refr)) {
+                                                                SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+                                                            }
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
-                                        if (arg5refr && arg5refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg5ID)) {
-                                            if (GetUserDataFixed((RE::NiAVObject*) arg5) == arg5refr) {
-                                                ((RE::NiAVObject*) arg5)->DecRefCount();
-                                            }
-                                        } else {
-                                            logger::error("OBJ 5 REF was collected");
-                                        }
-                                        if (arg7refr && arg7refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg7ID)) {
-                                            if (GetUserDataFixed((RE::NiAVObject*) arg7) == arg7refr) {
-                                                ((RE::NiAVObject*) arg7)->DecRefCount();
-                                            }
-                                        } else {
-                                            logger::error("OBJ 7 REF was collected");
-                                        }
-                                        if (arg8refr && arg8refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg8ID)) {
-                                            if (GetUserDataFixed((RE::NiAVObject*) arg8) == arg5refr) {
-                                                ((RE::NiAVObject*) arg8)->DecRefCount();
-                                            }
-                                        } else {
-                                            logger::error("OBJ 8 REF was collected");
-                                        }
-                                        
                                     }
                                 }
                             });
@@ -742,19 +732,18 @@ namespace plugin {
                 }
                 {
                     if (auto obj = (RE::NiAVObject*) arg3) {
-                        
                         RE::FormID userdataform;
                         RE::TESObjectREFR* userdata = GetUserDataFixed(obj);
                         if (userdata) {
                             userdataform = userdata->GetFormID();
-                            obj->IncRefCount();
                         } else {
                             logger::error("Apply Morph No Reference");
                             return;
                         }
+                        auto obj_parent = obj->parent;
                         std::lock_guard l(morph_task_mutex);
-                        if (morph_task_map.contains(MorphsTask{APPLY, refrform, refr, obj, nullptr, false})) {
-                            auto task_idx = morph_task_map[MorphsTask{APPLY, refrform, refr, obj, nullptr, false}];
+                        if (morph_task_map.contains(MorphsTask{APPLY, refrform, refr, obj,obj_parent, nullptr, false})) {
+                            auto task_idx = morph_task_map[MorphsTask{APPLY, refrform, refr, obj, obj_parent, nullptr, false}];
                             auto& task = morph_task_queue.at(task_idx);
                             if (task.func && task.skipped == false) {
                                 task.func(true);
@@ -762,36 +751,24 @@ namespace plugin {
                             task.skipped = true;
                         }
                         morph_task_queue.push_back(MorphsTask{
-                            APPLY, refrform, refr, obj,
-                            [arg1, refrform, refr, userdata, userdataform, arg3, attaching, defer](bool skip) {
+                            APPLY, refrform, refr, obj, obj_parent,
+                            [arg1, refrform, refr, userdata, userdataform, arg3,obj_parent, attaching, defer](bool skip) {
                                 if (!skip) {
                                     if (auto new_refr = (RE::TESObjectREFR*) RE::TESObjectREFR::LookupByID<RE::TESObjectREFR>(refrform)) {
                                         if (!userdata || userdata == RE::TESObjectREFR::LookupByID<RE::TESObjectREFR>(userdataform)) {
                                             if (new_refr == refr) {
-                                                ApplyMorphsHook(arg1, refr, arg3, attaching, defer);
+                                                if (auto obj = (RE::NiAVObject*) arg3) {
+                                                    if (obj->parent == obj_parent && obj->_refCount > 0) {
+                                                        ApplyMorphsHook(arg1, refr, arg3, attaching, defer);
+                                                    }
+                                                }
                                             }
                                         }
-                                    }
-                                }
-                                if (auto obj = (RE::NiAVObject*) arg3) {
-                                    if (!userdata || userdata == RE::TESObjectREFR::LookupByID<RE::TESObjectREFR>(userdataform)) {
-
-                                        if (userdata) {
-                                            if (GetUserDataFixed(obj) == userdata) {
-                                                obj->DecRefCount();
-                                            } else {
-                                                logger::error("Apply OBJ REF was collected 1");
-                                            }
-                                        }
-                                        
-                                        
-                                    } else if (userdata) {
-                                        logger::error("Apply OBJ REF was collected 2");
                                     }
                                 }
                             },
                             false});
-                        morph_task_map.insert_or_assign(MorphsTask{APPLY, refrform, refr, obj, nullptr, false},
+                        morph_task_map.insert_or_assign(MorphsTask{APPLY, refrform, refr, obj, obj_parent, nullptr, false},
                                                         morph_task_queue.size() - 1);
                     }
                 }
@@ -821,8 +798,8 @@ namespace plugin {
                     }
                     {
                         std::lock_guard l(morph_task_mutex);
-                        if (morph_task_map.contains(MorphsTask{UPDATE, refrid, (RE::TESObjectREFR*) arg2, nullptr, nullptr, false})) {
-                            auto task_idx = morph_task_map[MorphsTask{UPDATE, refrid, (RE::TESObjectREFR*) arg2, nullptr, nullptr, false}];
+                        if (morph_task_map.contains(MorphsTask{UPDATE, refrid, (RE::TESObjectREFR*) arg2, nullptr,nullptr, nullptr, false})) {
+                            auto task_idx = morph_task_map[MorphsTask{UPDATE, refrid, (RE::TESObjectREFR*) arg2, nullptr,nullptr, nullptr, false}];
                             auto& task = morph_task_queue.at(task_idx);
                             if (task.func && task.skipped == false) {
                                 task.func(true);
@@ -830,7 +807,7 @@ namespace plugin {
                             task.skipped = true;
                         }
                         morph_task_queue.push_back(
-                            MorphsTask{UPDATE, refrid, (RE::TESObjectREFR*) arg2, nullptr,
+                            MorphsTask{UPDATE, refrid, (RE::TESObjectREFR*) arg2, nullptr,nullptr,
                                        [arg1, arg2, refrid, arg3](bool skip) {
                                            if (!skip) {
                                                if (arg2 == RE::TESObjectREFR::LookupByID<RE::TESObjectREFR>(refrid)) {
@@ -847,7 +824,7 @@ namespace plugin {
                                            }
                                        },
                                        false});
-                        morph_task_map.insert_or_assign(MorphsTask{UPDATE, refrid, (RE::TESObjectREFR*) arg2, nullptr, nullptr, false},
+                        morph_task_map.insert_or_assign(MorphsTask{UPDATE, refrid, (RE::TESObjectREFR*) arg2, nullptr,nullptr, nullptr, false},
                                                         morph_task_queue.size() - 1);
                     }
                 }
