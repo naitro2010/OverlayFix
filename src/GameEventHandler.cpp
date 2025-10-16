@@ -412,13 +412,27 @@ namespace plugin {
             {
                 std::lock_guard l(shader_property_mutex);
                 if (GetCurrentThreadId() == RE::Main::GetSingleton()->threadID) {
-                    OverlayCullingFix(obj);
-                    SetShaderPropertyHook(obj, (void*) variant, immediate, arg4);
-                    OverlayCullingFix(obj);
+                    if (obj->_refCount) {
+                        logger::info("obj count {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
+                        OverlayCullingFix(obj);
+                        SetShaderPropertyHook(obj, (void*) variant, immediate, arg4);
+                        OverlayCullingFix(obj);
+                        logger::info("obj count 2 {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
+                    } else {
+                        logger::warn("obj count warn {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
+                    }
                 } else {
-                    OverlayCullingFix(obj);
-                    SetShaderPropertyHook(obj, (void*) variant, false, arg4);
-                    OverlayCullingFix(obj);
+                    
+                    if (obj->_refCount) {
+                        logger::info("obj count 3 {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
+                        OverlayCullingFix(obj);
+                        SetShaderPropertyHook(obj, (void*) variant, false, arg4);
+                        OverlayCullingFix(obj);
+                        logger::info("obj count 4 {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
+                    } else {
+                        logger::warn("obj count warn 3 {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
+                    }
+
                 }
             }
 
@@ -808,15 +822,21 @@ namespace plugin {
                 logger::info("Found incorrect geometry type for overlays, removal complete");
             }
         }
-        if (geo) {
-            InstallOverlayHook(inter, param_2, param_3, param_4, geo, param_5, param_6);
-        }
-        if (param_5 && geo) {
-            if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(geometry_node_name)) {
-                found_geo = found_geometry->AsGeometry();
-                CullingFix(found_geo);
+        if (geo && param_5 && param_4) {
+            if (geo->_refCount > 0 && param_5->_refCount > 0 && param_4->_refCount > 0) {
+                InstallOverlayHook(inter, param_2, param_3, param_4, geo, param_5, param_6);
+                if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(geometry_node_name)) {
+                    found_geo = found_geometry->AsGeometry();
+                    CullingFix(found_geo);
+                }
+            } else {
+                logger::error("Invalid object or reference for Installing Overlay");
             }
+        } else {
+            logger::error("Invalid object or reference");
         }
+                
+         
     }
     static std::atomic<uint32_t> skee_loaded = 0;
     static std::atomic<uint32_t> samrim_loaded = 0;
