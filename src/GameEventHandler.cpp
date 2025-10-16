@@ -386,20 +386,16 @@ namespace plugin {
     static std::recursive_mutex shader_property_mutex;
     void OverlayCullingFix(RE::NiAVObject* obj) {
         if (obj) {
-            if (obj->_refCount > 0) {
-                RE::BSGeometry* geo = obj->AsGeometry();
-                if (geo != nullptr) {
-                    geo = geo;
-                    auto found_geo = geo;
-                    if (found_geo != nullptr) {
-                        if (obj->name.contains("[SOvl") || obj->name.contains("[Ovl") || obj->name.contains("[Sovl") ||
-                            obj->name.contains("[ovl") || obj->name.contains("[sovl")) {
-                            CullingFix(found_geo);
-                        }
+            RE::BSGeometry* geo = obj->AsGeometry();
+            if (geo != nullptr) {
+                geo = geo;
+                auto found_geo = geo;
+                if (found_geo != nullptr) {
+                    if (obj->name.contains("[SOvl") || obj->name.contains("[Ovl") || obj->name.contains("[Sovl") ||
+                        obj->name.contains("[ovl") || obj->name.contains("[sovl")) {
+                        CullingFix(found_geo);
                     }
                 }
-            } else {
-                logger::error("obj reference count less than 1");
             }
         }
     }
@@ -412,9 +408,6 @@ namespace plugin {
             if (GetUserDataFixed(obj) && GetUserDataFixed(obj)->As<RE::TESObjectREFR>()) {
                 refr = GetUserDataFixed(obj)->As<RE::TESObjectREFR>();
                 refrid = refr->GetFormID();
-            }
-            if (obj->_refCount == 0) {
-                logger::warn("shader property obj has no reference");
             }
             {
                 std::lock_guard l(shader_property_mutex);
@@ -504,11 +497,17 @@ namespace plugin {
             if (!PARALLEL_TRANSFORM_FIX) {
                 return SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
             }
+            bool is_loading = false;
             {
                 std::lock_guard lg(loading_game_mutex);
                 if (IS_LOADING_GAME) {
-                    return SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+                    is_loading = true;
+                    
                 }
+            }
+            if (is_loading) {
+                std::lock_guard spl(shader_property_mutex);
+                return SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
             }
             RE::FormID refrid;
             if (!IS_LOADING_GAME) {
@@ -554,6 +553,7 @@ namespace plugin {
                         if (auto task_int = SKSE::GetTaskInterface()) {
                             task_int->AddTask([=] {
                                 if (arg2 && arg2 == RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid)) {
+                                    std::lock_guard spl(shader_property_mutex);
                                     if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() &&
                                         (((RE::TESObjectREFR*) arg2)->_refCount >= 1) &&
                                         ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
@@ -566,6 +566,7 @@ namespace plugin {
                                                             GetUserDataFixed(((RE::NiAVObject*) arg7)) == arg7refr)) {
                                                             if (!arg8 || (((RE::NiAVObject*) arg8)->_refCount > 0 &&
                                                                 GetUserDataFixed(((RE::NiAVObject*) arg8)) == arg8refr)) {
+                                                                
                                                                 SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
                                                             } else {
                                                                 logger::error("arg8 no references");
@@ -633,8 +634,14 @@ namespace plugin {
             return ApplyMorphsHook(arg1, arg2, arg3, attaching, defer);
         }
         {
-            std::lock_guard lg(loading_game_mutex);
-            if (PARALLEL_MORPH_FIX && IS_LOADING_GAME) {
+            bool is_loading = false;
+            {
+                std::lock_guard lg(loading_game_mutex);
+                if (IS_LOADING_GAME) {
+                    is_loading = true;
+                }
+            }
+            if (PARALLEL_MORPH_FIX && is_loading) {
                 return ApplyMorphsHook(arg1, arg2, arg3, attaching, defer);
             }
         }
