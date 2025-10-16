@@ -384,6 +384,25 @@ namespace plugin {
                                   uint64_t param_4) = (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
                                                                 uint64_t param_4)) 0x0;
     static std::recursive_mutex shader_property_mutex;
+    void OverlayCullingFix(RE::NiAVObject* obj) {
+        if (obj) {
+            if (obj->_refCount > 0) {
+                RE::BSGeometry* geo = obj->AsGeometry();
+                if (geo != nullptr) {
+                    geo = geo;
+                    auto found_geo = geo;
+                    if (found_geo != nullptr) {
+                        if (obj->name.contains("[SOvl") || obj->name.contains("[Ovl") || obj->name.contains("[Sovl") ||
+                            obj->name.contains("[ovl") || obj->name.contains("[sovl")) {
+                            CullingFix(found_geo);
+                        }
+                    }
+                }
+            } else {
+                logger::error("obj reference count less than 1");
+            }
+        }
+    }
     static void SetShaderProperty_fn(RE::NiAVObject* obj, void* variant, bool immediate, uint64_t arg4) {
         RE::TESObjectREFR* refr = nullptr;
         RE::FormID refrid(0xFFFFFFFF);
@@ -393,83 +412,20 @@ namespace plugin {
             if (GetUserDataFixed(obj) && GetUserDataFixed(obj)->As<RE::TESObjectREFR>()) {
                 refr = GetUserDataFixed(obj)->As<RE::TESObjectREFR>();
                 refrid = refr->GetFormID();
-            } else {
+            }
+            if (obj->_refCount == 0) {
                 logger::warn("shader property obj has no reference");
             }
             {
                 std::lock_guard l(shader_property_mutex);
                 if (GetCurrentThreadId() == RE::Main::GetSingleton()->threadID) {
-                    if (obj) {
-                        if (obj->_refCount > 0) {
-                            RE::BSGeometry* geo = obj->AsGeometry();
-                            if (geo != nullptr) {
-                                geo = geo;
-                                auto found_geo = geo;
-                                if (found_geo != nullptr) {
-                                    if (obj->name.contains("[SOvl") || obj->name.contains("[Ovl") || obj->name.contains("[Sovl") ||
-                                        obj->name.contains("[ovl") || obj->name.contains("[sovl")) {
-                                        CullingFix(found_geo);
-                                    }
-                                }
-                            }
-                        } else {
-                            logger::error("obj reference count less than 1");
-                        }
-                    }
+                    OverlayCullingFix(obj);
                     SetShaderPropertyHook(obj, (void*) variant, immediate, arg4);
-                    if (obj) {
-                        if (obj->_refCount > 0) {
-                            RE::BSGeometry* geo = obj->AsGeometry();
-                            if (geo != nullptr) {
-                                geo = geo;
-                                auto found_geo = geo;
-                                if (found_geo != nullptr) {
-                                    if (obj->name.contains("[SOvl") || obj->name.contains("[Ovl") || obj->name.contains("[Sovl") ||
-                                        obj->name.contains("[ovl") || obj->name.contains("[sovl")) {
-                                        CullingFix(found_geo);
-                                    }
-                                }
-                            }
-                        } else {
-                            logger::error("obj reference count less than 1");
-                        }
-                    }
+                    OverlayCullingFix(obj);
                 } else {
-                    if (obj) {
-                        if (obj->_refCount > 0) {
-                            RE::BSGeometry* geo = obj->AsGeometry();
-                            if (geo != nullptr) {
-                                geo = geo;
-                                auto found_geo = geo;
-                                if (found_geo != nullptr) {
-                                    if (obj->name.contains("[SOvl") || obj->name.contains("[Ovl") || obj->name.contains("[Sovl") ||
-                                        obj->name.contains("[ovl") || obj->name.contains("[sovl")) {
-                                        CullingFix(found_geo);
-                                    }
-                                }
-                            }
-                        } else {
-                            logger::error("obj reference count less than 1");
-                        }
-                    }
+                    OverlayCullingFix(obj);
                     SetShaderPropertyHook(obj, (void*) variant, false, arg4);
-                    if (obj) {
-                        if (obj->_refCount > 0) {
-                            RE::BSGeometry* geo = obj->AsGeometry();
-                            if (geo != nullptr) {
-                                geo = geo;
-                                auto found_geo = geo;
-                                if (found_geo != nullptr) {
-                                    if (obj->name.contains("[SOvl") || obj->name.contains("[Ovl") || obj->name.contains("[Sovl") ||
-                                        obj->name.contains("[ovl") || obj->name.contains("[sovl")) {
-                                        CullingFix(found_geo);
-                                    }
-                                }
-                            }
-                        } else {
-                            logger::error("obj reference count less than 1");
-                        }
-                    }
+                    OverlayCullingFix(obj);
                 }
             }
 
