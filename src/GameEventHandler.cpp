@@ -390,72 +390,91 @@ namespace plugin {
         if (!obj) {
             return;
         } else {
-            {
-                std::lock_guard l(shader_property_mutex);
-                if (GetCurrentThreadId() == RE::Main::GetSingleton()->threadID) {
-                    SetShaderPropertyHook(obj, (void*) variant, immediate, arg4);
-                } else {
-                    SetShaderPropertyHook(obj, (void*) variant, false, arg4);
-                }
-            }
             if (GetUserDataFixed(obj) && GetUserDataFixed(obj)->As<RE::TESObjectREFR>()) {
                 refr = GetUserDataFixed(obj)->As<RE::TESObjectREFR>();
                 refrid = refr->GetFormID();
             } else {
                 logger::warn("shader property obj has no reference");
             }
-        }
-        if (obj->parent == nullptr) {
-            logger::warn("shader property obj has no parent node");
-        }
-        auto obj_parent = obj->parent;
-        if (auto task_int = SKSE::GetTaskInterface()) {
             {
-                std::lock_guard l(morph_task_mutex);
-                if (morph_task_map.contains(MorphsTask{PROPERTY, refrid, refr, obj, obj_parent, nullptr, false})) {
-                    auto task_idx = morph_task_map[MorphsTask{PROPERTY, refrid, refr, obj, obj_parent, nullptr, false}];
-                    auto& task = morph_task_queue.at(task_idx);
-
-                    if (task.func && task.skipped == false) {
-                        task.func(true);
-                    }
-                    task.skipped = true;
-                }
-                morph_task_queue.push_back(MorphsTask{
-                    PROPERTY, refrid, refr, obj, obj_parent,
-                    [obj, obj_parent, refr, refrid, immediate](bool skip) {
-                        if (!skip) {
-                            auto new_refr = (RE::TESObjectREFR*) nullptr;
-                            if (refr) {
-                                new_refr = RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid);
-                            }
-                            if (!refr || refr == new_refr) {
-                                if (obj && obj->parent && obj->parent==obj_parent) {
-                                    if (obj->_refCount > 0) {
-                                        RE::BSGeometry* geo = obj->AsGeometry();
-                                        if (geo != nullptr) {
-                                            geo = geo;
-                                            auto found_geo = geo;
-                                            if (found_geo != nullptr) {
-                                                if (obj->name.contains("[SOvl") || obj->name.contains("[Ovl") ||
-                                                    obj->name.contains("[Sovl") || obj->name.contains("[ovl") ||
-                                                    obj->name.contains("[sovl")) {
-                                                    CullingFix(found_geo);
-                                                }
-                                            }
-                                        }
-                                    } else {
-                                        logger::error("obj reference count less than 1");
+                std::lock_guard l(shader_property_mutex);
+                if (GetCurrentThreadId() == RE::Main::GetSingleton()->threadID) {
+                    if (obj) {
+                        if (obj->_refCount > 0) {
+                            RE::BSGeometry* geo = obj->AsGeometry();
+                            if (geo != nullptr) {
+                                geo = geo;
+                                auto found_geo = geo;
+                                if (found_geo != nullptr) {
+                                    if (obj->name.contains("[SOvl") || obj->name.contains("[Ovl") || obj->name.contains("[Sovl") ||
+                                        obj->name.contains("[ovl") || obj->name.contains("[sovl")) {
+                                        CullingFix(found_geo);
                                     }
                                 }
                             }
+                        } else {
+                            logger::error("obj reference count less than 1");
                         }
-                    },
-                    false});
-                morph_task_map.insert_or_assign(MorphsTask{PROPERTY, refrid, refr, obj, obj_parent, nullptr, false},
-                                                morph_task_queue.size() - 1);
+                    }
+                    SetShaderPropertyHook(obj, (void*) variant, immediate, arg4);
+                    if (obj) {
+                        if (obj->_refCount > 0) {
+                            RE::BSGeometry* geo = obj->AsGeometry();
+                            if (geo != nullptr) {
+                                geo = geo;
+                                auto found_geo = geo;
+                                if (found_geo != nullptr) {
+                                    if (obj->name.contains("[SOvl") || obj->name.contains("[Ovl") || obj->name.contains("[Sovl") ||
+                                        obj->name.contains("[ovl") || obj->name.contains("[sovl")) {
+                                        CullingFix(found_geo);
+                                    }
+                                }
+                            }
+                        } else {
+                            logger::error("obj reference count less than 1");
+                        }
+                    }
+                } else {
+                    if (obj) {
+                        if (obj->_refCount > 0) {
+                            RE::BSGeometry* geo = obj->AsGeometry();
+                            if (geo != nullptr) {
+                                geo = geo;
+                                auto found_geo = geo;
+                                if (found_geo != nullptr) {
+                                    if (obj->name.contains("[SOvl") || obj->name.contains("[Ovl") || obj->name.contains("[Sovl") ||
+                                        obj->name.contains("[ovl") || obj->name.contains("[sovl")) {
+                                        CullingFix(found_geo);
+                                    }
+                                }
+                            }
+                        } else {
+                            logger::error("obj reference count less than 1");
+                        }
+                    }
+                    SetShaderPropertyHook(obj, (void*) variant, false, arg4);
+                    if (obj) {
+                        if (obj->_refCount > 0) {
+                            RE::BSGeometry* geo = obj->AsGeometry();
+                            if (geo != nullptr) {
+                                geo = geo;
+                                auto found_geo = geo;
+                                if (found_geo != nullptr) {
+                                    if (obj->name.contains("[SOvl") || obj->name.contains("[Ovl") || obj->name.contains("[Sovl") ||
+                                        obj->name.contains("[ovl") || obj->name.contains("[sovl")) {
+                                        CullingFix(found_geo);
+                                    }
+                                }
+                            }
+                        } else {
+                            logger::error("obj reference count less than 1");
+                        }
+                    }
+                }
             }
+
         }
+
     }
     static void DeepCopy_fn(uint64_t param_1, uint64_t* param_2, uint64_t param_3, uint64_t param_4) {
         if (param_1 == 0x0) {
@@ -592,12 +611,21 @@ namespace plugin {
                                                             if (!arg8 || (((RE::NiAVObject*) arg8)->_refCount > 0 &&
                                                                 GetUserDataFixed(((RE::NiAVObject*) arg8)) == arg8refr)) {
                                                                 SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+                                                            } else {
+                                                                logger::error("arg8 no references");
                                                             }
+                                                        } else {
+                                                            logger::error("arg7 no references");
                                                         }
+                                                    } else {
+                                                        logger::error("arg5 no references");
                                                     }
                                                 }
                                             }
                                         }
+                                    }
+                                    if (!((RE::TESObjectREFR*)arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
+                                        logger::error("arg2 3D not loaded");
                                     }
                                 }
                             });
