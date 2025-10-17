@@ -414,9 +414,19 @@ namespace plugin {
                 if (GetCurrentThreadId() == RE::Main::GetSingleton()->threadID) {
                     if (obj->_refCount) {
                         logger::info("obj count {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
-                        OverlayCullingFix(obj);
                         SetShaderPropertyHook(obj, (void*) variant, immediate, arg4);
-                        OverlayCullingFix(obj);
+                        if (immediate == false) {
+                            if (auto task_int = SKSE::GetTaskInterface()) {
+                                auto parent = obj->parent;
+                                task_int->AddTask([obj, parent] {
+                                    if (obj->parent == parent && obj->_refCount > 0) {
+                                        OverlayCullingFix(obj);
+                                    }
+                                });
+                            }
+                        } else {
+                            OverlayCullingFix(obj);
+                        }
                         logger::info("obj count 2 {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
                     } else {
                         logger::warn("obj count warn {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
@@ -425,9 +435,15 @@ namespace plugin {
                     
                     if (obj->_refCount) {
                         logger::info("obj count 3 {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
-                        OverlayCullingFix(obj);
                         SetShaderPropertyHook(obj, (void*) variant, false, arg4);
-                        OverlayCullingFix(obj);
+                        if (auto task_int = SKSE::GetTaskInterface()) {
+                            auto parent = obj->parent;
+                            task_int->AddTask([obj,parent] {
+                                if (obj->parent == parent && obj->_refCount > 0) {
+                                    OverlayCullingFix(obj);
+                                }
+                            });
+                        }
                         logger::info("obj count 4 {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
                     } else {
                         logger::warn("obj count warn 3 {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
@@ -822,9 +838,10 @@ namespace plugin {
                 logger::info("Found incorrect geometry type for overlays, removal complete");
             }
         }
+        InstallOverlayHook(inter, param_2, param_3, param_4, geo, param_5, param_6);
         if (geo && param_5 && param_4) {
             if (geo->_refCount > 0 && param_5->_refCount > 0 && param_4->_refCount > 0) {
-                InstallOverlayHook(inter, param_2, param_3, param_4, geo, param_5, param_6);
+                
                 if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(geometry_node_name)) {
                     found_geo = found_geometry->AsGeometry();
                     CullingFix(found_geo);
