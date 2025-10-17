@@ -25,7 +25,7 @@ static bool do_hide_unused_overlays = true;
 static bool do_reverse = false;
 static bool print_flags = true;
 static bool overlay_culling_fix = true;
-static bool IS_LOADING_GAME = true;
+static bool IS_LOADING_GAME = false;
 RE::TESObjectREFR* GetUserDataFixed(RE::NiAVObject* obj) {
     auto* userData = REL::RelocateMember<RE::TESObjectREFR*>(obj, 0x0F8, 0x110);
     if (userData) {
@@ -51,8 +51,8 @@ class MorphsTask {
         bool skipped = false;
 };
 bool operator==(const MorphsTask& lhs, const MorphsTask& rhs) {
-    return lhs.task_type == rhs.task_type && lhs.form_id == rhs.form_id && lhs.ref == rhs.ref && lhs.obj == rhs.obj && lhs.obj_parent == rhs.obj_parent &&
-           lhs.skipped == rhs.skipped;
+    return lhs.task_type == rhs.task_type && lhs.form_id == rhs.form_id && lhs.ref == rhs.ref && lhs.obj == rhs.obj &&
+           lhs.obj_parent == rhs.obj_parent && lhs.skipped == rhs.skipped;
 }
 template <>
 struct std::hash<MorphsTask> {
@@ -177,6 +177,19 @@ namespace plugin {
                 }
             }
         }
+    }
+    static bool is_main_thread() {
+        auto main = RE::Main::GetSingleton();
+        auto isVR = REL::Module::get().IsVR();
+        auto main_thread_id = main->threadID;
+        if (isVR) {
+            main_thread_id = ((uint64_t) main->instance) & 0xFFFFFFFF;
+        }
+        auto current_thread_id = std::this_thread::get_id()._Get_underlying_id();
+        if (current_thread_id == main_thread_id) {
+            return true;
+        }
+        return false;
     }
     void WalkOverlays(RE::NiAVObject* CurrentObject, bool hide,
                       std::function<void(RE::NiPointer<RE::NiNode>, RE::NiPointer<RE::NiAVObject>, uint32_t)>& sort_callback) {
@@ -411,7 +424,7 @@ namespace plugin {
             }
             {
                 std::lock_guard l(shader_property_mutex);
-                if (GetCurrentThreadId() == RE::Main::GetSingleton()->threadID) {
+                if (is_main_thread()) {
                     if (obj->_refCount) {
                         logger::info("obj count {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
                         SetShaderPropertyHook(obj, (void*) variant, immediate, arg4);
@@ -432,13 +445,12 @@ namespace plugin {
                         logger::warn("obj count warn {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
                     }
                 } else {
-                    
                     if (obj->_refCount) {
                         logger::info("obj count 3 {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
                         SetShaderPropertyHook(obj, (void*) variant, false, arg4);
                         if (auto task_int = SKSE::GetTaskInterface()) {
                             auto parent = obj->parent;
-                            task_int->AddTask([obj,parent] {
+                            task_int->AddTask([obj, parent] {
                                 if (obj->parent == parent && obj->_refCount > 0) {
                                     OverlayCullingFix(obj);
                                 }
@@ -448,12 +460,9 @@ namespace plugin {
                     } else {
                         logger::warn("obj count warn 3 {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
                     }
-
                 }
             }
-
         }
-
     }
     static void DeepCopy_fn(uint64_t param_1, uint64_t* param_2, uint64_t param_3, uint64_t param_4) {
         if (param_1 == 0x0) {
@@ -532,7 +541,6 @@ namespace plugin {
                 std::lock_guard lg(loading_game_mutex);
                 if (IS_LOADING_GAME) {
                     is_loading = true;
-                    
                 }
             }
             if (is_loading) {
@@ -540,7 +548,7 @@ namespace plugin {
                 return SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
             }
             RE::FormID refrid;
-            if (!IS_LOADING_GAME) {
+            if (!is_loading) {
                 if (PARALLEL_TRANSFORM_FIX) {
                     if ((RE::TESObjectREFR*) arg2) {
                         refrid = ((RE::TESObjectREFR*) arg2)->GetFormID();
@@ -579,6 +587,7 @@ namespace plugin {
                             logger::error("No User Data for OBJ 8");
                         }
                     }
+                    if (!is_main_thread())
                     {
                         if (auto task_int = SKSE::GetTaskInterface()) {
                             task_int->AddTask([=] {
@@ -591,12 +600,11 @@ namespace plugin {
                                             if (!arg7refr || arg7refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg7ID)) {
                                                 if (!arg8refr || arg8refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg8ID)) {
                                                     if (!arg5 || (((RE::NiAVObject*) arg5)->_refCount > 0 &&
-                                                        GetUserDataFixed(((RE::NiAVObject*) arg5)) == arg5refr)) {
+                                                                  GetUserDataFixed(((RE::NiAVObject*) arg5)) == arg5refr)) {
                                                         if (!arg7 || (((RE::NiAVObject*) arg7)->_refCount > 0 &&
-                                                            GetUserDataFixed(((RE::NiAVObject*) arg7)) == arg7refr)) {
+                                                                      GetUserDataFixed(((RE::NiAVObject*) arg7)) == arg7refr)) {
                                                             if (!arg8 || (((RE::NiAVObject*) arg8)->_refCount > 0 &&
-                                                                GetUserDataFixed(((RE::NiAVObject*) arg8)) == arg8refr)) {
-                                                                
+                                                                          GetUserDataFixed(((RE::NiAVObject*) arg8)) == arg8refr)) {
                                                                 SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
                                                             } else {
                                                                 logger::error("arg8 no references");
@@ -611,11 +619,18 @@ namespace plugin {
                                             }
                                         }
                                     }
-                                    if (!((RE::TESObjectREFR*)arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
+                                    if (!((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
                                         logger::error("arg2 3D not loaded");
                                     }
                                 }
                             });
+                        }
+                    }
+                    else if (is_main_thread()) {
+                        {
+
+                            SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+                                                        
                         }
                     }
                     return;
@@ -697,7 +712,7 @@ namespace plugin {
                         }
                         auto obj_parent = obj->parent;
                         std::lock_guard l(morph_task_mutex);
-                        if (morph_task_map.contains(MorphsTask{APPLY, refrform, refr, obj,obj_parent, nullptr, false})) {
+                        if (morph_task_map.contains(MorphsTask{APPLY, refrform, refr, obj, obj_parent, nullptr, false})) {
                             auto task_idx = morph_task_map[MorphsTask{APPLY, refrform, refr, obj, obj_parent, nullptr, false}];
                             auto& task = morph_task_queue.at(task_idx);
                             if (task.func && task.skipped == false) {
@@ -707,7 +722,7 @@ namespace plugin {
                         }
                         morph_task_queue.push_back(MorphsTask{
                             APPLY, refrform, refr, obj, obj_parent,
-                            [arg1, refrform, refr, userdata, userdataform, arg3,obj_parent, attaching, defer](bool skip) {
+                            [arg1, refrform, refr, userdata, userdataform, arg3, obj_parent, attaching, defer](bool skip) {
                                 if (!skip) {
                                     if (auto new_refr = (RE::TESObjectREFR*) RE::TESObjectREFR::LookupByID<RE::TESObjectREFR>(refrform)) {
                                         if (!userdata || userdata == RE::TESObjectREFR::LookupByID<RE::TESObjectREFR>(userdataform)) {
@@ -753,8 +768,10 @@ namespace plugin {
                     }
                     {
                         std::lock_guard l(morph_task_mutex);
-                        if (morph_task_map.contains(MorphsTask{UPDATE, refrid, (RE::TESObjectREFR*) arg2, nullptr,nullptr, nullptr, false})) {
-                            auto task_idx = morph_task_map[MorphsTask{UPDATE, refrid, (RE::TESObjectREFR*) arg2, nullptr,nullptr, nullptr, false}];
+                        if (morph_task_map.contains(
+                                MorphsTask{UPDATE, refrid, (RE::TESObjectREFR*) arg2, nullptr, nullptr, nullptr, false})) {
+                            auto task_idx =
+                                morph_task_map[MorphsTask{UPDATE, refrid, (RE::TESObjectREFR*) arg2, nullptr, nullptr, nullptr, false}];
                             auto& task = morph_task_queue.at(task_idx);
                             if (task.func && task.skipped == false) {
                                 task.func(true);
@@ -762,7 +779,7 @@ namespace plugin {
                             task.skipped = true;
                         }
                         morph_task_queue.push_back(
-                            MorphsTask{UPDATE, refrid, (RE::TESObjectREFR*) arg2, nullptr,nullptr,
+                            MorphsTask{UPDATE, refrid, (RE::TESObjectREFR*) arg2, nullptr, nullptr,
                                        [arg1, arg2, refrid, arg3](bool skip) {
                                            if (!skip) {
                                                if (arg2 == RE::TESObjectREFR::LookupByID<RE::TESObjectREFR>(refrid)) {
@@ -779,8 +796,9 @@ namespace plugin {
                                            }
                                        },
                                        false});
-                        morph_task_map.insert_or_assign(MorphsTask{UPDATE, refrid, (RE::TESObjectREFR*) arg2, nullptr,nullptr, nullptr, false},
-                                                        morph_task_queue.size() - 1);
+                        morph_task_map.insert_or_assign(
+                            MorphsTask{UPDATE, refrid, (RE::TESObjectREFR*) arg2, nullptr, nullptr, nullptr, false},
+                            morph_task_queue.size() - 1);
                     }
                 }
             } else {
@@ -841,7 +859,6 @@ namespace plugin {
         InstallOverlayHook(inter, param_2, param_3, param_4, geo, param_5, param_6);
         if (geo && param_5 && param_4) {
             if (geo->_refCount > 0 && param_5->_refCount > 0 && param_4->_refCount > 0) {
-                
                 if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(geometry_node_name)) {
                     found_geo = found_geometry->AsGeometry();
                     CullingFix(found_geo);
@@ -852,8 +869,6 @@ namespace plugin {
         } else {
             logger::error("Invalid object or reference");
         }
-                
-         
     }
     static std::atomic<uint32_t> skee_loaded = 0;
     static std::atomic<uint32_t> samrim_loaded = 0;
@@ -1777,7 +1792,7 @@ namespace plugin {
         }
         {
             std::lock_guard lg(loading_game_mutex);
-            IS_LOADING_GAME = true;
+            IS_LOADING_GAME = false;
         }
         logger::info("onPreLoadGame()");
     }
