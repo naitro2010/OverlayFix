@@ -36,7 +36,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ${DETOURS_LIBRARY})
 
 if(MSVC)
         target_compile_options(${PROJECT_NAME} PRIVATE /Zi)
-        target_link_options(${PROJECT_NAME} PRIVATE "/LTCG $<$<CONFIG:RELEASE>:/DEBUG:FULL;/INCREMENTAL:NO;/OPT:REF,ICF>")
+        target_link_options(${PROJECT_NAME} PRIVATE "/LTCG;$<$<CONFIG:RELEASE>:/DEBUG:FULL;/INCREMENTAL:NO;/OPT:REF,ICF>")
 endif()
 
 target_include_directories(${PROJECT_NAME}
