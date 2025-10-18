@@ -397,6 +397,7 @@ namespace plugin {
                                   uint64_t param_4) = (void (*)(uint64_t param_1, uint64_t* param_2, uint64_t param_3,
                                                                 uint64_t param_4)) 0x0;
     static std::recursive_mutex shader_property_mutex;
+    static bool InstallingOverlays = false;
     void OverlayCullingFix(RE::NiAVObject* obj) {
         if (obj) {
             RE::BSGeometry* geo = obj->AsGeometry();
@@ -418,17 +419,24 @@ namespace plugin {
         if (!obj) {
             return;
         } else {
+            std::lock_guard l(shader_property_mutex);
             if (GetUserDataFixed(obj) && GetUserDataFixed(obj)->As<RE::TESObjectREFR>()) {
                 refr = GetUserDataFixed(obj)->As<RE::TESObjectREFR>();
                 refrid = refr->GetFormID();
+                logger::info("obj refr {} {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount, refrid);
+            } else {
+                logger::info("obj no refr {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
             }
             {
-                std::lock_guard l(shader_property_mutex);
+                
                 if (is_main_thread()) {
-                    if (obj->_refCount) {
+                    if (obj->_refCount || InstallingOverlays) {
                         logger::info("obj count {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
+                        if (InstallingOverlays) {
+                            immediate = true;
+                        }
                         SetShaderPropertyHook(obj, (void*) variant, immediate, arg4);
-                        if (immediate == false) {
+                        if (InstallingOverlays==false || immediate==false) {
                             if (auto task_int = SKSE::GetTaskInterface()) {
                                 auto parent = obj->parent;
                                 task_int->AddTask([obj, parent] {
@@ -445,16 +453,24 @@ namespace plugin {
                         logger::warn("obj count warn {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
                     }
                 } else {
-                    if (obj->_refCount) {
+                    if (obj->_refCount || InstallingOverlays) {
                         logger::info("obj count 3 {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
-                        SetShaderPropertyHook(obj, (void*) variant, false, arg4);
-                        if (auto task_int = SKSE::GetTaskInterface()) {
-                            auto parent = obj->parent;
-                            task_int->AddTask([obj, parent] {
-                                if (obj->parent == parent && obj->_refCount > 0) {
-                                    OverlayCullingFix(obj);
-                                }
-                            });
+                        immediate = false;
+                        if (InstallingOverlays) {
+                            immediate = true;
+                        }
+                        SetShaderPropertyHook(obj, (void*) variant, immediate, arg4);
+                        if (InstallingOverlays == false) {
+                            if (auto task_int = SKSE::GetTaskInterface()) {
+                                auto parent = obj->parent;
+                                task_int->AddTask([obj, parent] {
+                                    if (obj->parent == parent && obj->_refCount > 0) {
+                                        OverlayCullingFix(obj);
+                                    }
+                                });
+                            }
+                        } else {
+                            OverlayCullingFix(obj);
                         }
                         logger::info("obj count 4 {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
                     } else {
@@ -789,8 +805,14 @@ namespace plugin {
                                                } else {
                                                    auto newrefr = RE::TESObjectREFR::LookupByID<RE::TESObjectREFR>(refrid);
                                                    if (arg2 && ((RE::TESObjectREFR*) newrefr)->As<RE::TESObjectREFR>()) {
-                                                       logger::error("Update Morph Reference changed");
-                                                       UpdateMorphsHook(arg1, newrefr, arg3);
+                                                       
+                                                       if (!newrefr->IsDeleted()) {
+                                                           logger::error("Update Morph Reference changed");
+                                                           UpdateMorphsHook(arg1, newrefr, arg3);
+                                                       } else {
+                                                           logger::error("Update Morph Invalid Reference for current game");
+                                                       }
+                                                       
                                                    }
                                                }
                                            }
@@ -840,7 +862,7 @@ namespace plugin {
             found_geo = found_geometry->AsGeometry();
         }
         if (found_geo) {
-            if (!geo || geo->_refCount == 0 || (geo->GetType() != found_geo->GetType())) {
+            if (!geo || geo->_refCount == 0 || found_geo->_refCount == 0 || (geo->GetType() != found_geo->GetType())) {
                 logger::info("Found incorrect geometry type for overlay, fixing");
                 while (found_geo) {
                     found_geo->GetGeometryRuntimeData().skinInstance = nullptr;
@@ -856,7 +878,44 @@ namespace plugin {
                 logger::info("Found incorrect geometry type for overlays, removal complete");
             }
         }
-        InstallOverlayHook(inter, param_2, param_3, param_4, geo, param_5, param_6);
+
+        {
+            if (RE::TESObjectREFR* refr=GetUserDataFixed(param_5)) {
+                if (param_4) {
+                    RE::FormID refrid = refr->formID;
+                    RE::FormID param4id = param_4->formID;
+                    if (auto task_int = SKSE::GetTaskInterface()) {
+                        if (is_main_thread()) {
+                            std::lock_guard l(shader_property_mutex);
+                            InstallingOverlays = true;
+                            InstallOverlayHook(inter, param_2, param_3, param_4, geo, param_5, param_6);
+                            InstallingOverlays = false;
+                        } else {
+                            std::string param2_str(param_2);
+                            std::string param3_str(param_3);
+                            task_int->AddTask([refrid, refr,param_4,param4id,inter,param2_str,param3_str,geo,param_5,param_6] {
+                                if (refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid)) {
+                                    if (param_4 == RE::TESForm::LookupByID<RE::TESObjectREFR>(param4id)) {
+                                        std::lock_guard l(shader_property_mutex);
+                                        InstallingOverlays = true;
+                                        InstallOverlayHook(inter, param2_str.c_str(), param3_str.c_str(), param_4, geo, param_5, param_6);
+                                        InstallingOverlays = false;
+                                    } else {
+                                        logger::warn("Tried to Install Overlay with collected param_4");
+                                    }
+                                } else {
+                                    logger::warn("Tried Install Overlay with collected refr");
+                                }
+                            });
+                        }
+                    }
+                } else {
+                    logger::info("Install Overlay with no param_4");
+                }
+            } else {
+                logger::info("Install Overlay with no param_5 ref");
+            }
+        }
         if (geo && param_5 && param_4) {
             if (geo->_refCount > 0 && param_5->_refCount > 0 && param_4->_refCount > 0) {
                 if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(geometry_node_name)) {
