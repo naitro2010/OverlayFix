@@ -632,12 +632,20 @@ namespace plugin {
                                                     } else {
                                                         logger::error("arg5 no references");
                                                     }
+                                                } else {
+                                                    logger::error("arg8 form doesn't match");
                                                 }
+                                            } else {
+                                                logger::error("arg7 form doesn't match");
                                             }
+                                        } else {
+                                            logger::error("arg5 form doesn't match");
                                         }
                                     } else {
                                         logger::warn("SkeletonOnAttach 3D not loaded");
                                     }
+                                } else {
+                                    logger::warn("arg2 form doesn't match");
                                 }
                             });
                         }
