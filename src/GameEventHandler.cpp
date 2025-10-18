@@ -611,7 +611,8 @@ namespace plugin {
                                     std::lock_guard spl(shader_property_mutex);
                                     if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() &&
                                         (((RE::TESObjectREFR*) arg2)->_refCount >= 1) &&
-                                        !((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IsDeleted()) {
+                                        !((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IsDeleted() && (((RE::TESObjectREFR*) arg2)->Is3DLoaded())) 
+                                    {
                                         if (!arg5refr || arg5refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg5ID)) {
                                             if (!arg7refr || arg7refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg7ID)) {
                                                 if (!arg8refr || arg8refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg8ID)) {
@@ -634,6 +635,8 @@ namespace plugin {
                                                 }
                                             }
                                         }
+                                    } else {
+                                        logger::warn("SkeletonOnAttach 3D not loaded");
                                     }
                                 }
                             });
