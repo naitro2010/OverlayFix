@@ -610,8 +610,7 @@ namespace plugin {
                                 if (arg2 && arg2 == RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid)) {
                                     std::lock_guard spl(shader_property_mutex);
                                     if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() &&
-                                        (((RE::TESObjectREFR*) arg2)->_refCount >= 1) &&
-                                        ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
+                                        (((RE::TESObjectREFR*) arg2)->_refCount >= 1)) {
                                         if (!arg5refr || arg5refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg5ID)) {
                                             if (!arg7refr || arg7refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg7ID)) {
                                                 if (!arg8refr || arg8refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg8ID)) {
@@ -634,9 +633,6 @@ namespace plugin {
                                                 }
                                             }
                                         }
-                                    }
-                                    if (!((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->Is3DLoaded()) {
-                                        logger::error("arg2 3D not loaded");
                                     }
                                 }
                             });
