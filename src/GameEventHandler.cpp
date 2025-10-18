@@ -157,7 +157,7 @@ namespace plugin {
                         if (auto material = ((RE::BSLightingShaderMaterial*) shader_prop->material)) {
                             if ((material->materialAlpha < 0.0001f ||
                                  ((((RE::BSLightingShaderMaterialBase*) material)->diffuseTexture &&
-                                   (((RE::BSLightingShaderMaterialBase*) material)->diffuseTexture->name.contains("\\default.dds")))))) {
+                                   ((((RE::BSLightingShaderMaterialBase*) material)->diffuseTexture->name.contains("\\default.dds")) || (((RE::BSLightingShaderMaterialBase*) material)->diffuseTexture->name.contains("\\blank.dds"))))))) {
                                 found_geo->GetFlags().reset(RE::NiAVObject::Flag::kAlwaysDraw);
                                 found_geo->GetFlags().set(RE::NiAVObject::Flag::kHidden);
                                 found_geo->GetFlags().set(RE::NiAVObject::Flag::kDisableSorting);
