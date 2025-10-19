@@ -894,20 +894,46 @@ namespace plugin {
                     RE::FormID param4id = param_4->formID;
                     if (auto task_int = SKSE::GetTaskInterface()) {
                         if (is_main_thread()) {
-                            std::lock_guard l(shader_property_mutex);
-                            InstallingOverlays = true;
-                            InstallOverlayHook(inter, param_2, param_3, param_4, geo, param_5, param_6);
-                            InstallingOverlays = false;
+                            if (geo && param_5 && param_4) {
+                                if (geo->_refCount > 0 && param_5->_refCount > 0 && param_4->_refCount > 0) {
+                                    std::lock_guard l(shader_property_mutex);
+                                    InstallingOverlays = true;
+                                    InstallOverlayHook(inter, param_2, param_3, param_4, geo, param_5, param_6);
+                                    InstallingOverlays = false;
+                                    if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(geometry_node_name)) {
+                                        found_geo = found_geometry->AsGeometry();
+                                        CullingFix(found_geo);
+                                    }
+                                } else {
+                                    logger::error("Invalid object or reference for Installing Overlay");
+                                }
+                            } else {
+                                logger::error("Invalid object or reference");
+                            }
                         } else {
                             std::string param2_str(param_2);
                             std::string param3_str(param_3);
                             task_int->AddTask([refrid, refr,param_4,param4id,inter,param2_str,param3_str,geo,param_5,param_6] {
-                                if (refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid)) {
-                                    if (param_4 == RE::TESForm::LookupByID<RE::TESObjectREFR>(param4id)) {
-                                        std::lock_guard l(shader_property_mutex);
-                                        InstallingOverlays = true;
-                                        InstallOverlayHook(inter, param2_str.c_str(), param3_str.c_str(), param_4, geo, param_5, param_6);
-                                        InstallingOverlays = false;
+                                if (refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid) && refr && !(refr->IsDeleted())) {
+                                    if (param_4 == RE::TESForm::LookupByID<RE::TESObjectREFR>(param4id) && param_4 && !(param_4->IsDeleted())) {
+                                        
+                                        if (geo && param_5 && param_4) {
+                                            if (geo->_refCount > 0 && param_5->_refCount > 0 && param_4->_refCount > 0) {
+                                                std::lock_guard l(shader_property_mutex);
+                                                InstallingOverlays = true;
+                                                InstallOverlayHook(inter, param2_str.c_str(), param3_str.c_str(), param_4, geo, param_5,
+                                                                   param_6);
+                                                InstallingOverlays = false;
+                                                if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(param2_str.c_str())) {
+                                                    auto found_geo = found_geometry->AsGeometry();
+                                                    CullingFix(found_geo);
+                                                }
+                                            } else {
+                                                logger::error("Invalid object or reference for Installing Overlay");
+                                            }
+                                        } else {
+                                            logger::error("Invalid object or reference");
+                                        }
                                     } else {
                                         logger::warn("Tried to Install Overlay with collected param_4");
                                     }
@@ -924,18 +950,7 @@ namespace plugin {
                 logger::info("Install Overlay with no param_5 ref");
             }
         }
-        if (geo && param_5 && param_4) {
-            if (geo->_refCount > 0 && param_5->_refCount > 0 && param_4->_refCount > 0) {
-                if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(geometry_node_name)) {
-                    found_geo = found_geometry->AsGeometry();
-                    CullingFix(found_geo);
-                }
-            } else {
-                logger::error("Invalid object or reference for Installing Overlay");
-            }
-        } else {
-            logger::error("Invalid object or reference");
-        }
+
     }
     static std::atomic<uint32_t> skee_loaded = 0;
     static std::atomic<uint32_t> samrim_loaded = 0;
