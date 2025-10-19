@@ -898,7 +898,9 @@ namespace plugin {
                                 if (geo->_refCount > 0 && param_5->_refCount > 0 && param_4->_refCount > 0) {
                                     std::lock_guard l(shader_property_mutex);
                                     InstallingOverlays = true;
+                                    logger::info("Installing Overlay on main thread");
                                     InstallOverlayHook(inter, param_2, param_3, param_4, geo, param_5, param_6);
+                                    logger::info("Done installing Overlay on main thread");
                                     InstallingOverlays = false;
                                     if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(geometry_node_name)) {
                                         found_geo = found_geometry->AsGeometry();
@@ -921,8 +923,10 @@ namespace plugin {
                                             if (geo->_refCount > 0 && param_5->_refCount > 0 && param_4->_refCount > 0) {
                                                 std::lock_guard l(shader_property_mutex);
                                                 InstallingOverlays = true;
+                                                logger::info("Installing Overlay on task");
                                                 InstallOverlayHook(inter, param2_str.c_str(), param3_str.c_str(), param_4, geo, param_5,
                                                                    param_6);
+                                                logger::info("Done installing Overlay on task thread");
                                                 InstallingOverlays = false;
                                                 if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(param2_str.c_str())) {
                                                     auto found_geo = found_geometry->AsGeometry();
