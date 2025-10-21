@@ -819,6 +819,17 @@ namespace plugin {
     static void UpdateMorphsHook_fn(void* arg1, void* arg2, void* arg3) {
         if (!PARALLEL_MORPH_FIX) {
             return UpdateMorphsHook(arg1, arg2, arg3);
+        } else {
+            bool is_loading = false;
+            {
+                std::lock_guard lg(loading_game_mutex);
+                if (IS_LOADING_GAME) {
+                    is_loading = true;
+                }
+            }
+            if (is_loading == true) {
+                return UpdateMorphsHook(arg1, arg2, arg3);
+            }
         }
         {
             if (PARALLEL_MORPH_FIX) {
