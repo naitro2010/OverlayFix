@@ -598,20 +598,29 @@ namespace plugin {
                         if (auto arg8r = GetUserDataFixed((RE::NiAVObject*) arg8)) {
                             arg8refr = arg8r;
                             arg8ID = arg8refr->GetFormID();
-
                         } else {
                             logger::error("No User Data for OBJ 8");
                         }
                     }
                     if (!is_main_thread())
                     {
+                        if (arg5refr) {
+                            arg5refr->IncRefCount();
+                        }
+                        if (arg7refr) {
+                            arg7refr->IncRefCount();
+                        }
+                        if (arg8refr) {
+                            arg8refr->IncRefCount();
+                        }
+                        ((RE::TESObjectREFR*) arg2)->IncRefCount();
                         if (auto task_int = SKSE::GetTaskInterface()) {
                             task_int->AddTask([=] {
                                 if (arg2 && arg2 == RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid)) {
-                                    std::lock_guard spl(shader_property_mutex);
+                                    
                                     if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() &&
                                         (((RE::TESObjectREFR*) arg2)->_refCount >= 1) &&
-                                        !((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IsDeleted() && (((RE::TESObjectREFR*) arg2)->Is3DLoaded())) 
+                                        !((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IsDeleted())
                                     {
                                         if (!arg5refr || arg5refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg5ID)) {
                                             if (!arg7refr || arg7refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg7ID)) {
@@ -622,7 +631,23 @@ namespace plugin {
                                                                       GetUserDataFixed(((RE::NiAVObject*) arg7)) == arg7refr)) {
                                                             if (!arg8 || (((RE::NiAVObject*) arg8)->_refCount > 0 &&
                                                                           GetUserDataFixed(((RE::NiAVObject*) arg8)) == arg8refr)) {
-                                                                SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+                                                                
+                                                                if (arg5 && ((RE::NiAVObject*) arg5)->parent) {
+                                                                    if (arg7 && ((RE::NiAVObject*) arg7)->parent) {
+                                                                        if (arg8 && ((RE::NiAVObject*) arg8)->parent) {
+                                                                            std::lock_guard spl(shader_property_mutex);
+                                                                            SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7,
+                                                                                                 arg8);
+                                                                        } else {
+                                                                            logger::error("arg8 NiAVObject not attached");
+                                                                        }
+                                                                    } else {
+                                                                        logger::error("arg7 NiAVObject not attached");
+                                                                    }
+                                                                } else {
+                                                                    logger::error("arg5 NiAVObject not attached");
+                                                                }
+                                                                
                                                             } else {
                                                                 logger::error("arg8 no references");
                                                             }
@@ -644,9 +669,27 @@ namespace plugin {
                                     } else {
                                         logger::warn("SkeletonOnAttach 3D not loaded");
                                     }
+                                    ((RE::TESObjectREFR*) arg2)->DecRefCount();
+                                    if (arg5refr && arg5refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg5ID)) {
+                                        arg5refr->DecRefCount();
+                                    } else {
+                                        logger::error("arg5 form doesn't match (potential memory leak)");
+                                    }
+                                    if (arg7refr && arg7refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg7ID)) {
+                                        
+                                        arg7refr->DecRefCount();
+                                    } else {
+                                        logger::error("arg7 form doesn't match (potential memory leak)");
+                                    }
+                                    if (arg8refr && arg8refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg8ID)) {
+                                        arg8refr->DecRefCount();
+                                    } else {
+                                        logger::error("arg8 form doesn't match (potential memory leak)");
+                                    }
                                 } else {
-                                    logger::warn("arg2 form doesn't match");
+                                    logger::error("arg2 form doesn't match (potential memory leak)");
                                 }
+                                
                             });
                         }
                     }
