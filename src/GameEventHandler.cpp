@@ -25,7 +25,7 @@ static bool do_hide_unused_overlays = true;
 static bool do_reverse = false;
 static bool print_flags = true;
 static bool overlay_culling_fix = true;
-static bool IS_LOADING_GAME = false;
+static bool IS_LOADING_GAME = true;
 RE::TESObjectREFR* GetUserDataFixed(RE::NiAVObject* obj) {
     auto* userData = REL::RelocateMember<RE::TESObjectREFR*>(obj, 0x0F8, 0x110);
     if (userData) {
@@ -1909,7 +1909,7 @@ namespace plugin {
         }
         {
             std::lock_guard lg(loading_game_mutex);
-            IS_LOADING_GAME = false;
+            IS_LOADING_GAME = true;
         }
         logger::info("onNewGame()");
     }
@@ -1921,7 +1921,7 @@ namespace plugin {
         }
         {
             std::lock_guard lg(loading_game_mutex);
-            IS_LOADING_GAME = false;
+            IS_LOADING_GAME = true;
         }
         logger::info("onPreLoadGame()");
     }
@@ -1939,6 +1939,10 @@ namespace plugin {
     }
 
     void GameEventHandler::onSaveGame() {
+        {
+            std::lock_guard lg(loading_game_mutex);
+            IS_LOADING_GAME = false;
+        }
         logger::info("onSaveGame()");
     }
 
