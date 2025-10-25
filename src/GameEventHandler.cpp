@@ -1066,6 +1066,7 @@ namespace plugin {
         ini["OverlayFix"]["samrimnamefix"] = "false";
         ini["OverlayFix"]["taskdelaycount"] = "60";
         ini["OverlayFix"]["taskdelaymilliseconds"] = "4";
+        spdlog::set_level(spdlog::level::warn);
         file.read(ini);
         if (!ini["OverlayFix"].has("version")) {
             ini["OverlayFix"]["version"] = "1";
@@ -1895,7 +1896,7 @@ namespace plugin {
 #endif
         if (LoadMainMenuOrig == nullptr) {
             LoadMainMenuOrig =
-                (void (*)(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4)) REL::RelocationID(53268, 53264, 53268).address();
+                (void (*)(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4)) REL::RelocationID(52368, 53264, 52368).address();
             DetourTransactionBegin();
             DetourUpdateThread(GetCurrentThread());
             DetourAttach(&(PVOID&) LoadMainMenuOrig, &LoadMainMenuHook);
