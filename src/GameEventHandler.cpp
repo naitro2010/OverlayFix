@@ -603,7 +603,17 @@ namespace plugin {
                         RE::TESObjectREFR* ref = (RE::TESObjectREFR*)arg2;
                         if ((arg7 && !(((RE::NiAVObject*)arg7)->parent))) {
                             SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
-                            logger::warn("skipping transform fix because game is still loading");
+                            logger::warn("skipping transform fix because arg7 is not attached");
+                            return;
+                        }
+                        if ((arg5 && !(((RE::NiAVObject*) arg5)->parent))) {
+                            SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+                            logger::warn("skipping transform fix because arg5 is not attached");
+                            return;
+                        }
+                        if ((arg8 && !(((RE::NiAVObject*) arg8)->parent))) {
+                            SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+                            logger::warn("skipping transform fix because arg8 is not attached");
                             return;
                         }
                     } else {
@@ -662,12 +672,9 @@ namespace plugin {
                                         if (!arg5refr || arg5refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg5ID)) {
                                             if (!arg7refr || arg7refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg7ID)) {
                                                 if (!arg8refr || arg8refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg8ID)) {
-                                                    if (!arg5 || (((RE::NiAVObject*) arg5)->_refCount > 0 &&
-                                                                  GetUserDataFixed(((RE::NiAVObject*) arg5)) == arg5refr)) {
-                                                        if (!arg7 || (((RE::NiAVObject*) arg7)->_refCount > 0 &&
-                                                                      GetUserDataFixed(((RE::NiAVObject*) arg7)) == arg7refr)) {
-                                                            if (!arg8 || (((RE::NiAVObject*) arg8)->_refCount > 0 &&
-                                                                          GetUserDataFixed(((RE::NiAVObject*) arg8)) == arg8refr)) {
+                                                    if (!arg5 || (((RE::NiAVObject*) arg5)->_refCount > 0)) {
+                                                        if (!arg7 || (((RE::NiAVObject*) arg7)->_refCount > 0)) {
+                                                            if (!arg8 || (((RE::NiAVObject*) arg8)->_refCount > 0)) {
                                                                 
                                                                 if (arg5 && ((RE::NiAVObject*) arg5)->parent) {
                                                                     if (arg7 && ((RE::NiAVObject*) arg7)->parent) {
