@@ -25,7 +25,7 @@ static bool do_hide_unused_overlays = true;
 static bool do_reverse = false;
 static bool print_flags = true;
 static bool overlay_culling_fix = true;
-static bool IS_LOADING_GAME = true;
+static bool IS_LOADING_GAME = false;
 RE::TESObjectREFR* GetUserDataFixed(RE::NiAVObject* obj) {
     auto* userData = REL::RelocateMember<RE::TESObjectREFR*>(obj, 0x0F8, 0x110);
     if (userData) {
@@ -39,7 +39,7 @@ RE::TESObjectREFR* GetUserDataFixed(RE::NiAVObject* obj) {
 std::recursive_mutex morph_task_mutex;
 std::recursive_mutex loading_game_mutex;
 std::vector<std::function<void()>> other_task_queue;
-enum MorphsTaskType { PROPERTY, APPLY, UPDATE, MAX };
+enum MorphsTaskType { PROPERTY,CULLING, APPLY, UPDATE, MAX };
 class MorphsTask {
     public:
         MorphsTaskType task_type;
@@ -398,6 +398,7 @@ namespace plugin {
                                                                 uint64_t param_4)) 0x0;
     static std::recursive_mutex shader_property_mutex;
     static bool InstallingOverlays = false;
+    
     void OverlayCullingFix(RE::NiAVObject* obj) {
         if (obj) {
             RE::BSGeometry* geo = obj->AsGeometry();
@@ -410,6 +411,39 @@ namespace plugin {
                         CullingFix(found_geo);
                     }
                 }
+            }
+        }
+    }
+    static void QueueOverlayCullingFix(RE::NiAVObject* obj) {
+        {
+            std::lock_guard l(morph_task_mutex);
+            auto refr = GetUserDataFixed(obj);
+            if (refr) {
+                auto refrid = refr->formID;
+                if (morph_task_map.contains(
+                        MorphsTask{CULLING, refr->formID, (RE::TESObjectREFR*) refr, obj, obj->parent, nullptr, false})) {
+                    auto task_idx =
+                        morph_task_map[MorphsTask{CULLING, refr->formID, (RE::TESObjectREFR*) refr, obj, obj->parent, nullptr, false}];
+                    auto& task = morph_task_queue.at(task_idx);
+                    if (task.func && task.skipped == false) {
+                        task.func(true);
+                    }
+                    task.skipped = true;
+                }
+                auto parent = obj->parent;
+                morph_task_queue.push_back(MorphsTask{CULLING, refr->formID, (RE::TESObjectREFR*) refr, obj, obj->parent,
+                                                      [refrid, refr, obj, parent](bool skip) {
+                                                          if (!skip) {
+                                                              if (obj && obj->parent == parent &&
+                                                                  refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid)) {
+                                                                  OverlayCullingFix(obj);
+                                                              }
+                                                          }
+                                                      },
+                                                      false});
+                morph_task_map.insert_or_assign(
+                    MorphsTask{CULLING, refr->formID, (RE::TESObjectREFR*) refr, obj, obj->parent, nullptr, false},
+                                                morph_task_queue.size() - 1);
             }
         }
     }
@@ -439,11 +473,11 @@ namespace plugin {
                         if (InstallingOverlays==false || immediate==false) {
                             if (auto task_int = SKSE::GetTaskInterface()) {
                                 auto parent = obj->parent;
-                                task_int->AddTask([obj, parent] {
-                                    if (obj->parent == parent && obj->_refCount > 0) {
-                                        OverlayCullingFix(obj);
-                                    }
-                                });
+                                
+                                if (obj->parent == parent && obj->_refCount > 0) {
+                                    QueueOverlayCullingFix(obj);
+                                }
+                                
                             }
                         } else {
                             OverlayCullingFix(obj);
@@ -463,11 +497,9 @@ namespace plugin {
                         if (InstallingOverlays == false) {
                             if (auto task_int = SKSE::GetTaskInterface()) {
                                 auto parent = obj->parent;
-                                task_int->AddTask([obj, parent] {
-                                    if (obj->parent == parent && obj->_refCount > 0) {
-                                        OverlayCullingFix(obj);
-                                    }
-                                });
+                                if (obj->parent == parent && obj->_refCount > 0) {
+                                    QueueOverlayCullingFix(obj);
+                                }
                             }
                         } else {
                             OverlayCullingFix(obj);
@@ -967,7 +999,9 @@ namespace plugin {
                                     InstallingOverlays = false;
                                     if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(geometry_node_name)) {
                                         found_geo = found_geometry->AsGeometry();
-                                        CullingFix(found_geo);
+                                        
+                                        QueueOverlayCullingFix(found_geo);
+                                        
                                     }
                                 } else {
                                     logger::error("Invalid object or reference for Installing Overlay");
@@ -993,7 +1027,7 @@ namespace plugin {
                                                 InstallingOverlays = false;
                                                 if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(param2_str.c_str())) {
                                                     auto found_geo = found_geometry->AsGeometry();
-                                                    CullingFix(found_geo);
+                                                    QueueOverlayCullingFix(found_geo);
                                                 }
                                             } else {
                                                 logger::error("Invalid object or reference for Installing Overlay");
@@ -1032,7 +1066,7 @@ namespace plugin {
     static void LoadMainMenuHook(uint64_t arg1,uint64_t arg2,uint64_t arg3,uint64_t arg4) {
         {
             std::lock_guard lg(loading_game_mutex);
-            IS_LOADING_GAME = true;
+            //IS_LOADING_GAME = true;
         }
         LoadMainMenuOrig(arg1, arg2, arg3, arg4);
     }
@@ -1946,7 +1980,7 @@ namespace plugin {
         }
         {
             std::lock_guard lg(loading_game_mutex);
-            IS_LOADING_GAME = true;
+            IS_LOADING_GAME = false;
         }
         logger::info("onNewGame()");
     }
@@ -1958,7 +1992,7 @@ namespace plugin {
         }
         {
             std::lock_guard lg(loading_game_mutex);
-            IS_LOADING_GAME = true;
+            //IS_LOADING_GAME = false;
         }
         logger::info("onPreLoadGame()");
     }
@@ -1970,7 +2004,7 @@ namespace plugin {
         }
         {
             std::lock_guard lg(loading_game_mutex);
-            IS_LOADING_GAME = false;
+            //IS_LOADING_GAME = false;
         }
         logger::info("onPostLoadGame()");
     }
@@ -1978,7 +2012,7 @@ namespace plugin {
     void GameEventHandler::onSaveGame() {
         {
             std::lock_guard lg(loading_game_mutex);
-            IS_LOADING_GAME = false;
+            //IS_LOADING_GAME = false;
         }
         logger::info("onSaveGame()");
     }
