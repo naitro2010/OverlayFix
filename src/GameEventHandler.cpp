@@ -617,11 +617,20 @@ namespace plugin {
                         if (auto task_int = SKSE::GetTaskInterface()) {
                             task_int->AddTask([=] {
                                 if (arg2 && arg2 == RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid)) {
-                                    
                                     if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() &&
                                         (((RE::TESObjectREFR*) arg2)->_refCount >= 1) &&
+                                        !((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IsDeleted()) {
+                                        if (!((RE::TESObjectREFR*) arg2)->Is3DLoaded()) {
+                                            logger::warn("SkeletonOnAttach 3D not loaded, forcing 3D load now");
+                                            ((RE::TESObjectREFR*) arg2)->Load3D(false);
+                                            logger::warn("SkeletonOnAttach 3D should be loaded now");
+                                        }
+                                    }
+                                    if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() &&
+                                        (((RE::TESObjectREFR*) arg2)->_refCount >= 1) && ((RE::TESObjectREFR*) arg2)->Is3DLoaded() &&
                                         !((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IsDeleted())
                                     {
+                                        
                                         if (!arg5refr || arg5refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg5ID)) {
                                             if (!arg7refr || arg7refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg7ID)) {
                                                 if (!arg8refr || arg8refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg8ID)) {
@@ -1019,6 +1028,14 @@ namespace plugin {
     static bool skip_load = false;
     static bool vr_esl = true;
     static bool do_samrim_name_fix = false;
+    auto LoadMainMenuOrig = (void (*)(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4)) 0x0;
+    static void LoadMainMenuHook(uint64_t arg1,uint64_t arg2,uint64_t arg3,uint64_t arg4) {
+        {
+            std::lock_guard lg(loading_game_mutex);
+            IS_LOADING_GAME = true;
+        }
+        LoadMainMenuOrig(arg1, arg2, arg3, arg4);
+    }
     void GameEventHandler::onPostPostLoad() {
         mINI::INIFile file("Data\\skse\\plugins\\OverlayFix.ini");
         mINI::INIStructure ini;
@@ -1089,6 +1106,7 @@ namespace plugin {
         if (ini["OverlayFix"]["samrimnamefix"] == "true") {
             do_samrim_name_fix = true;
         }
+        
         if (HMODULE handle = GetModuleHandleA("skee64.dll")) {
             MODULEINFO skee64_info;
             GetModuleInformation(GetCurrentProcess(), handle, &skee64_info, sizeof(skee64_info));
@@ -1860,6 +1878,14 @@ namespace plugin {
             logger::info("completed patching Steamdeck keyboard crash");
         }
 #endif
+        if (LoadMainMenuOrig == nullptr) {
+            LoadMainMenuOrig =
+                (void (*)(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4)) REL::RelocationID(53268, 53264, 53268).address();
+            DetourTransactionBegin();
+            DetourUpdateThread(GetCurrentThread());
+            DetourAttach(&(PVOID&) LoadMainMenuOrig, &LoadMainMenuHook);
+            DetourTransactionCommit();
+        }
         morph_task_thread = std::thread([] {
             while (true) {
                 std::vector<MorphsTask> queue_copy;
