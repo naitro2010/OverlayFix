@@ -36,6 +36,7 @@ RE::TESObjectREFR* GetUserDataFixed(RE::NiAVObject* obj) {
     }
     return nullptr;
 }
+static std::atomic_uint32_t* task_thread_id_ptr=nullptr;
 std::recursive_mutex morph_task_mutex;
 std::recursive_mutex loading_game_mutex;
 std::vector<std::function<void()>> other_task_queue;
@@ -178,7 +179,7 @@ namespace plugin {
             }
         }
     }
-    static bool is_main_thread() {
+    static bool is_main_or_task_thread() {
         auto main = RE::Main::GetSingleton();
         auto isVR = REL::Module::get().IsVR();
         auto main_thread_id = main->threadID;
@@ -186,7 +187,7 @@ namespace plugin {
             main_thread_id = ((uint64_t) main->instance) & 0xFFFFFFFF;
         }
         auto current_thread_id = std::this_thread::get_id()._Get_underlying_id();
-        if (current_thread_id == main_thread_id) {
+        if (current_thread_id == main_thread_id || current_thread_id == task_thread_id_ptr->load()) {
             return true;
         }
         return false;
@@ -463,7 +464,7 @@ namespace plugin {
             }
             {
                 
-                if (is_main_thread()) {
+                if (is_main_or_task_thread()) {
                     if (obj->_refCount || InstallingOverlays) {
                         logger::info("obj count {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
                         if (InstallingOverlays) {
@@ -592,7 +593,6 @@ namespace plugin {
                 }
             }
             if (is_loading) {
-                std::lock_guard spl(shader_property_mutex);
                 return SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
             }
             RE::FormID refrid;
@@ -600,7 +600,12 @@ namespace plugin {
                 if (PARALLEL_TRANSFORM_FIX) {
                     if ((RE::TESObjectREFR*) arg2) {
                         refrid = ((RE::TESObjectREFR*) arg2)->GetFormID();
-
+                        RE::TESObjectREFR* ref = (RE::TESObjectREFR*)arg2;
+                        if ((arg7 && !(((RE::NiAVObject*)arg7)->parent))) {
+                            SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+                            logger::warn("skipping transform fix because game is still loading");
+                            return;
+                        }
                     } else {
                         return;
                     }
@@ -634,23 +639,14 @@ namespace plugin {
                             logger::error("No User Data for OBJ 8");
                         }
                     }
-                    if (!is_main_thread())
+                    if (!is_main_or_task_thread())
                     {
-                        if (arg5refr) {
-                            arg5refr->IncRefCount();
-                        }
-                        if (arg7refr) {
-                            arg7refr->IncRefCount();
-                        }
-                        if (arg8refr) {
-                            arg8refr->IncRefCount();
-                        }
                         ((RE::TESObjectREFR*) arg2)->IncRefCount();
                         if (auto task_int = SKSE::GetTaskInterface()) {
                             task_int->AddTask([=] {
                                 if (arg2 && arg2 == RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid)) {
                                     if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() &&
-                                        (((RE::TESObjectREFR*) arg2)->_refCount >= 1) &&
+                                        (((RE::TESObjectREFR*) arg2)->_refCount > 0) &&
                                         !((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IsDeleted()) {
                                         if (!((RE::TESObjectREFR*) arg2)->Is3DLoaded()) {
                                             logger::warn("SkeletonOnAttach 3D not loaded, forcing 3D load now");
@@ -659,7 +655,7 @@ namespace plugin {
                                         }
                                     }
                                     if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() &&
-                                        (((RE::TESObjectREFR*) arg2)->_refCount >= 1) && ((RE::TESObjectREFR*) arg2)->Is3DLoaded() &&
+                                        (((RE::TESObjectREFR*) arg2)->_refCount > 0) && ((RE::TESObjectREFR*) arg2)->Is3DLoaded() &&
                                         !((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IsDeleted())
                                     {
                                         
@@ -676,7 +672,7 @@ namespace plugin {
                                                                 if (arg5 && ((RE::NiAVObject*) arg5)->parent) {
                                                                     if (arg7 && ((RE::NiAVObject*) arg7)->parent) {
                                                                         if (arg8 && ((RE::NiAVObject*) arg8)->parent) {
-                                                                            std::lock_guard spl(shader_property_mutex);
+                                                                            std::lock_guard l(shader_property_mutex);
                                                                             SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7,
                                                                                                  arg8);
                                                                         } else {
@@ -711,32 +707,17 @@ namespace plugin {
                                         logger::warn("SkeletonOnAttach 3D not loaded");
                                     }
                                     ((RE::TESObjectREFR*) arg2)->DecRefCount();
-                                    if (arg5refr && arg5refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg5ID)) {
-                                        arg5refr->DecRefCount();
-                                    } else {
-                                        logger::error("arg5 form doesn't match (potential memory leak)");
-                                    }
-                                    if (arg7refr && arg7refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg7ID)) {
-                                        
-                                        arg7refr->DecRefCount();
-                                    } else {
-                                        logger::error("arg7 form doesn't match (potential memory leak)");
-                                    }
-                                    if (arg8refr && arg8refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg8ID)) {
-                                        arg8refr->DecRefCount();
-                                    } else {
-                                        logger::error("arg8 form doesn't match (potential memory leak)");
-                                    }
-                                } else {
-                                    logger::error("arg2 form doesn't match (potential memory leak)");
+                                } else if (arg2) {
+                                    logger::error("arg2 form doesn't match");
+                                    ((RE::TESObjectREFR*) arg2)->DecRefCount();
                                 }
                                 
                             });
                         }
                     }
-                    else if (is_main_thread()) {
+                    else if (is_main_or_task_thread()) {
                         {
-
+                            std::lock_guard l(shader_property_mutex);
                             SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
                                                         
                         }
@@ -988,7 +969,7 @@ namespace plugin {
                     RE::FormID refrid = refr->formID;
                     RE::FormID param4id = param_4->formID;
                     if (auto task_int = SKSE::GetTaskInterface()) {
-                        if (is_main_thread()) {
+                        if (is_main_or_task_thread()) {
                             if (geo && param_5 && param_4) {
                                 if (geo->_refCount > 0 && param_5->_refCount > 0 && param_4->_refCount > 0) {
                                     std::lock_guard l(shader_property_mutex);
@@ -1919,6 +1900,7 @@ namespace plugin {
             DetourUpdateThread(GetCurrentThread());
             DetourAttach(&(PVOID&) LoadMainMenuOrig, &LoadMainMenuHook);
             DetourTransactionCommit();
+            task_thread_id_ptr = (std::atomic_uint32_t*)REL::VariantID(517237, 403767, 0x2ffd7d0).address();
         }
         morph_task_thread = std::thread([] {
             while (true) {
