@@ -593,6 +593,7 @@ namespace plugin {
                 }
             }
             if (is_loading) {
+                std::lock_guard l(shader_property_mutex);
                 return SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
             }
             RE::FormID refrid;
@@ -602,16 +603,19 @@ namespace plugin {
                         refrid = ((RE::TESObjectREFR*) arg2)->GetFormID();
                         RE::TESObjectREFR* ref = (RE::TESObjectREFR*)arg2;
                         if ((arg7 && !(((RE::NiAVObject*)arg7)->parent))) {
+                            std::lock_guard l(shader_property_mutex);
                             SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
                             logger::warn("skipping transform fix because arg7 is not attached");
                             return;
                         }
                         if ((arg5 && !(((RE::NiAVObject*) arg5)->parent))) {
+                            std::lock_guard l(shader_property_mutex);
                             SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
                             logger::warn("skipping transform fix because arg5 is not attached");
                             return;
                         }
                         if ((arg8 && !(((RE::NiAVObject*) arg8)->parent))) {
+                            std::lock_guard l(shader_property_mutex);
                             SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
                             logger::warn("skipping transform fix because arg8 is not attached");
                             return;
