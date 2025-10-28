@@ -40,7 +40,7 @@ static std::atomic_uint32_t* task_thread_id_ptr=nullptr;
 std::recursive_mutex morph_task_mutex;
 std::recursive_mutex loading_game_mutex;
 std::vector<std::function<void()>> other_task_queue;
-enum MorphsTaskType { PROPERTY,CULLING, APPLY, UPDATE, MAX };
+enum MorphsTaskType { PROPERTY,CULLING, APPLY, UPDATE, MAX};
 class MorphsTask {
     public:
         MorphsTaskType task_type;
@@ -749,26 +749,26 @@ namespace plugin {
             SetNodeTransformsHook(arg1, formID, immediate, reset);
         }
     }
+    */
     static void UpdateNodeTransformsHook_fn(void* arg1, RE::TESObjectREFR* ref, bool firstperson, bool gender,
                                             const SKEEString* node_string) {
         if (PARALLEL_TRANSFORM_FIX) {
             if (auto task_int = SKSE::GetTaskInterface()) {
                 if (ref && ((RE::TESObjectREFR*) ref)->As<RE::TESObjectREFR>()) {
-                    ((RE::TESObjectREFR*) ref)->As<RE::TESObjectREFR>()->IncRefCount();
+                    auto formid = ((RE::TESObjectREFR*) ref)->As<RE::TESObjectREFR>()->formID;
+                
+                    SKEEString new_node_string = SKEEString(*node_string);
+                    task_int->AddTask([arg1 = arg1, formid=formid, arg3 = firstperson, gender = gender, node_name = new_node_string] {
+                        auto arg2=RE::TESForm::LookupByID<RE::TESObjectREFR>(formid);
+                        std::lock_guard l(shader_property_mutex);
+                        UpdateNodeTransformsHook(arg1, arg2, arg3, gender, &node_name);
+                    });
                 }
-                SKEEString* new_node_string = new SKEEString(*node_string);
-                task_int->AddTask([arg1 = arg1, arg2 = ref, arg3 = firstperson, gender = gender, node_name = new_node_string] {
-                    UpdateNodeTransformsHook(arg1, arg2, arg3, gender, node_name);
-                    delete node_name;
-                    if (arg2 && ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()) {
-                        ((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->DecRefCount();
-                    }
-                });
             }
         } else {
             UpdateNodeTransformsHook(arg1, ref, firstperson, gender, node_string);
         }
-    }*/
+    }
 #ifdef PARALLEL_MORPH_WORKAROUND
 
     std::recursive_mutex update_morphs_mutex;
@@ -1205,13 +1205,14 @@ namespace plugin {
                     DetourTransactionCommit();
                     if (PARALLEL_TRANSFORM_FIX) {
                         logger::info("SKEE64 1170 parallel node transform workaround applying");
-                        /*
+                        
                         UpdateNodeTransformsHook = (void (*)(void*, RE::TESObjectREFR*, bool, bool, const SKEEString* node_name))(
                             (uint64_t) skee64_info.lpBaseOfDll + 0xc68d0);
                         DetourTransactionBegin();
                         DetourUpdateThread(GetCurrentThread());
                         DetourAttach(&(PVOID&) UpdateNodeTransformsHook, &UpdateNodeTransformsHook_fn);
                         DetourTransactionCommit();
+                        /*
                         SetNodeTransformsHook = (void (*)(void* arg1, uint32_t formID, uint64_t immediate, bool reset))(
                             (uint64_t) skee64_info.lpBaseOfDll + 0xc72c0);
                         DetourTransactionBegin();
@@ -1344,13 +1345,14 @@ namespace plugin {
 #endif
                     if (PARALLEL_TRANSFORM_FIX) {
                         logger::info("SKEE64 Tags 1170 parallel node transform workaround applying");
-                        /*
+                        
                         UpdateNodeTransformsHook = (void (*)(void*, RE::TESObjectREFR*, bool, bool, const SKEEString* node_name))(
                             (uint64_t) skee64_info.lpBaseOfDll + 0xca360);
                         DetourTransactionBegin();
                         DetourUpdateThread(GetCurrentThread());
                         DetourAttach(&(PVOID&) UpdateNodeTransformsHook, &UpdateNodeTransformsHook_fn);
                         DetourTransactionCommit();
+                        /*
                         SetNodeTransformsHook = (void (*)(void* arg1, uint32_t formID, uint64_t immediate, bool reset))(
                             (uint64_t) skee64_info.lpBaseOfDll + 0xcad50);
                         DetourTransactionBegin();
@@ -1418,7 +1420,14 @@ namespace plugin {
                         DetourAttach(&(PVOID&) SetShaderPropertyHook, &SetShaderProperty_fn);
                         DetourTransactionCommit();
                         if (PARALLEL_TRANSFORM_FIX) {
+
                             logger::info("SKEE64 UBE2 parallel transform workaround applying");
+                            UpdateNodeTransformsHook = (void (*)(void*, RE::TESObjectREFR*, bool, bool, const SKEEString* node_name))(
+                                (uint64_t) skee64_info.lpBaseOfDll + 0x7c040);
+                            DetourTransactionBegin();
+                            DetourUpdateThread(GetCurrentThread());
+                            DetourAttach(&(PVOID&) UpdateNodeTransformsHook, &UpdateNodeTransformsHook_fn);
+                            DetourTransactionCommit();
                             SkeletonOnAttachHook = (void (*)(void* arg1, void* arg2, void* arg3, void* arg4, void* arg5, bool arg6,
                                                              void* arg7, void* arg8))((uint64_t) skee64_info.lpBaseOfDll + 0xdf7e0);
                             DetourTransactionBegin();
@@ -1517,6 +1526,12 @@ namespace plugin {
 #endif
                         if (PARALLEL_TRANSFORM_FIX) {
                             logger::info("SKEE64 1597 parallel transform workaround applying");
+                            UpdateNodeTransformsHook = (void (*)(void*, RE::TESObjectREFR*, bool, bool, const SKEEString* node_name))(
+                                (uint64_t) skee64_info.lpBaseOfDll + 0x78160);
+                            DetourTransactionBegin();
+                            DetourUpdateThread(GetCurrentThread());
+                            DetourAttach(&(PVOID&) UpdateNodeTransformsHook, &UpdateNodeTransformsHook_fn);
+                            DetourTransactionCommit();
                             SkeletonOnAttachHook = (void (*)(void* arg1, void* arg2, void* arg3, void* arg4, void* arg5, bool arg6,
                                                              void* arg7, void* arg8))((uint64_t) skee64_info.lpBaseOfDll + 0xdcae0);
                             DetourTransactionBegin();
@@ -1562,6 +1577,12 @@ namespace plugin {
 #endif
                     if (PARALLEL_TRANSFORM_FIX) {
                         logger::info("SKEE64 041914 parallel transform workaround applying");
+                        UpdateNodeTransformsHook = (void (*)(void*, RE::TESObjectREFR*, bool, bool, const SKEEString* node_name))(
+                            (uint64_t) skee64_info.lpBaseOfDll + 0x82a20);
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) UpdateNodeTransformsHook, &UpdateNodeTransformsHook_fn);
+                        DetourTransactionCommit();
                         SkeletonOnAttachHook = (void (*)(void* arg1, void* arg2, void* arg3, void* arg4, void* arg5, bool arg6, void* arg7,
                                                          void* arg8))((uint64_t) skee64_info.lpBaseOfDll + 0xe8ae0);
                         DetourTransactionBegin();
@@ -1718,6 +1739,12 @@ namespace plugin {
 #endif
                     if (PARALLEL_TRANSFORM_FIX) {
                         logger::info("SKEEVR parallel transform workaround applying");
+                        UpdateNodeTransformsHook = (void (*)(void*, RE::TESObjectREFR*, bool, bool, const SKEEString* node_name))(
+                            (uint64_t) skee64_info.lpBaseOfDll + 0x75350);
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) UpdateNodeTransformsHook, &UpdateNodeTransformsHook_fn);
+                        DetourTransactionCommit();
                         SkeletonOnAttachHook = (void (*)(void* arg1, void* arg2, void* arg3, void* arg4, void* arg5, bool arg6, void* arg7,
                                                          void* arg8))((uint64_t) skee64_info.lpBaseOfDll + 0xd9040);
                         DetourTransactionBegin();
@@ -1767,6 +1794,12 @@ namespace plugin {
 #endif
                     if (PARALLEL_TRANSFORM_FIX) {
                         logger::info("SKEEVR 0p5 parallel transform workaround applying");
+                        UpdateNodeTransformsHook = (void (*)(void*, RE::TESObjectREFR*, bool, bool, const SKEEString* node_name))(
+                            (uint64_t) skee64_info.lpBaseOfDll + 0x7cd40);
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) UpdateNodeTransformsHook, &UpdateNodeTransformsHook_fn);
+                        DetourTransactionCommit();
                         SkeletonOnAttachHook = (void (*)(void* arg1, void* arg2, void* arg3, void* arg4, void* arg5, bool arg6, void* arg7,
                                                          void* arg8))((uint64_t) skee64_info.lpBaseOfDll + 0xe15b0);
                         DetourTransactionBegin();
