@@ -36,11 +36,11 @@ RE::TESObjectREFR* GetUserDataFixed(RE::NiAVObject* obj) {
     }
     return nullptr;
 }
-static std::atomic_uint32_t* task_thread_id_ptr=nullptr;
+auto task_pool_ptr = (bool (*)(void)) nullptr;
 std::recursive_mutex morph_task_mutex;
 std::recursive_mutex loading_game_mutex;
 std::vector<std::function<void()>> other_task_queue;
-enum MorphsTaskType { PROPERTY,CULLING, APPLY, UPDATE, MAX};
+enum MorphsTaskType { PROPERTY, CULLING, APPLY, UPDATE, MAX };
 class MorphsTask {
     public:
         MorphsTaskType task_type;
@@ -158,7 +158,8 @@ namespace plugin {
                         if (auto material = ((RE::BSLightingShaderMaterial*) shader_prop->material)) {
                             if ((material->materialAlpha < 0.0001f ||
                                  ((((RE::BSLightingShaderMaterialBase*) material)->diffuseTexture &&
-                                   ((((RE::BSLightingShaderMaterialBase*) material)->diffuseTexture->name.contains("\\default.dds")) || (((RE::BSLightingShaderMaterialBase*) material)->diffuseTexture->name.contains("\\blank.dds"))))))) {
+                                   ((((RE::BSLightingShaderMaterialBase*) material)->diffuseTexture->name.contains("\\default.dds")) ||
+                                    (((RE::BSLightingShaderMaterialBase*) material)->diffuseTexture->name.contains("\\blank.dds"))))))) {
                                 found_geo->GetFlags().reset(RE::NiAVObject::Flag::kAlwaysDraw);
                                 found_geo->GetFlags().set(RE::NiAVObject::Flag::kHidden);
                                 found_geo->GetFlags().set(RE::NiAVObject::Flag::kDisableSorting);
@@ -187,7 +188,7 @@ namespace plugin {
             main_thread_id = ((uint64_t) main->instance) & 0xFFFFFFFF;
         }
         auto current_thread_id = std::this_thread::get_id()._Get_underlying_id();
-        if (current_thread_id == main_thread_id || current_thread_id == task_thread_id_ptr->load()) {
+        if (current_thread_id == main_thread_id || (task_pool_ptr != nullptr && !task_pool_ptr())) {
             return true;
         }
         return false;
@@ -399,7 +400,7 @@ namespace plugin {
                                                                 uint64_t param_4)) 0x0;
     static std::recursive_mutex shader_property_mutex;
     static bool InstallingOverlays = false;
-    
+
     void OverlayCullingFix(RE::NiAVObject* obj) {
         if (obj) {
             RE::BSGeometry* geo = obj->AsGeometry();
@@ -444,7 +445,7 @@ namespace plugin {
                                                       false});
                 morph_task_map.insert_or_assign(
                     MorphsTask{CULLING, refr->formID, (RE::TESObjectREFR*) refr, obj, obj->parent, nullptr, false},
-                                                morph_task_queue.size() - 1);
+                    morph_task_queue.size() - 1);
             }
         }
     }
@@ -463,7 +464,6 @@ namespace plugin {
                 logger::info("obj no refr {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
             }
             {
-                
                 if (is_main_or_task_thread()) {
                     if (obj->_refCount || InstallingOverlays) {
                         logger::info("obj count {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
@@ -471,14 +471,13 @@ namespace plugin {
                             immediate = true;
                         }
                         SetShaderPropertyHook(obj, (void*) variant, immediate, arg4);
-                        if (InstallingOverlays==false || immediate==false) {
+                        if (InstallingOverlays == false || immediate == false) {
                             if (auto task_int = SKSE::GetTaskInterface()) {
                                 auto parent = obj->parent;
-                                
+
                                 if (obj->parent == parent && obj->_refCount > 0) {
                                     QueueOverlayCullingFix(obj);
                                 }
-                                
                             }
                         } else {
                             OverlayCullingFix(obj);
@@ -503,7 +502,12 @@ namespace plugin {
                                 }
                             }
                         } else {
-                            OverlayCullingFix(obj);
+                            if (auto task_int = SKSE::GetTaskInterface()) {
+                                auto parent = obj->parent;
+                                if (obj->parent == parent && obj->_refCount > 0) {
+                                    QueueOverlayCullingFix(obj);
+                                }
+                            }
                         }
                         logger::info("obj count 4 {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
                     } else {
@@ -601,23 +605,30 @@ namespace plugin {
                 if (PARALLEL_TRANSFORM_FIX) {
                     if ((RE::TESObjectREFR*) arg2) {
                         refrid = ((RE::TESObjectREFR*) arg2)->GetFormID();
-                        RE::TESObjectREFR* ref = (RE::TESObjectREFR*)arg2;
-                        if ((arg7 && !(((RE::NiAVObject*)arg7)->parent))) {
+                        RE::TESObjectREFR* ref = (RE::TESObjectREFR*) arg2;
+                        if ((arg7 && !(((RE::NiAVObject*) arg7)->parent))) {
                             std::lock_guard l(shader_property_mutex);
                             SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
-                            logger::warn("skipping transform fix because arg7 is not attached");
+                            if (!is_main_or_task_thread()) {
+                                logger::warn("skipping transform fix because arg7 is not attached");
+                            }
                             return;
                         }
                         if ((arg5 && !(((RE::NiAVObject*) arg5)->parent))) {
                             std::lock_guard l(shader_property_mutex);
                             SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
-                            logger::warn("skipping transform fix because arg5 is not attached");
+                            if (!is_main_or_task_thread()) {
+                                logger::warn("skipping transform fix because arg5 is not attached");
+                            }
                             return;
                         }
                         if ((arg8 && !(((RE::NiAVObject*) arg8)->parent))) {
                             std::lock_guard l(shader_property_mutex);
+                            
                             SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
-                            logger::warn("skipping transform fix because arg8 is not attached");
+                            if (!is_main_or_task_thread()) {
+                                    logger::warn("skipping transform fix because arg8 is not attached");
+                            }
                             return;
                         }
                     } else {
@@ -653,8 +664,7 @@ namespace plugin {
                             logger::error("No User Data for OBJ 8");
                         }
                     }
-                    if (!is_main_or_task_thread())
-                    {
+                    if (!is_main_or_task_thread()) {
                         ((RE::TESObjectREFR*) arg2)->IncRefCount();
                         if (auto task_int = SKSE::GetTaskInterface()) {
                             task_int->AddTask([=] {
@@ -670,16 +680,13 @@ namespace plugin {
                                     }
                                     if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() &&
                                         (((RE::TESObjectREFR*) arg2)->_refCount > 0) && ((RE::TESObjectREFR*) arg2)->Is3DLoaded() &&
-                                        !((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IsDeleted())
-                                    {
-                                        
+                                        !((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IsDeleted()) {
                                         if (!arg5refr || arg5refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg5ID)) {
                                             if (!arg7refr || arg7refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg7ID)) {
                                                 if (!arg8refr || arg8refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg8ID)) {
                                                     if (!arg5 || (((RE::NiAVObject*) arg5)->_refCount > 0)) {
                                                         if (!arg7 || (((RE::NiAVObject*) arg7)->_refCount > 0)) {
                                                             if (!arg8 || (((RE::NiAVObject*) arg8)->_refCount > 0)) {
-                                                                
                                                                 if (arg5 && ((RE::NiAVObject*) arg5)->parent) {
                                                                     if (arg7 && ((RE::NiAVObject*) arg7)->parent) {
                                                                         if (arg8 && ((RE::NiAVObject*) arg8)->parent) {
@@ -695,7 +702,7 @@ namespace plugin {
                                                                 } else {
                                                                     logger::error("arg5 NiAVObject not attached");
                                                                 }
-                                                                
+
                                                             } else {
                                                                 logger::error("arg8 no references");
                                                             }
@@ -722,15 +729,12 @@ namespace plugin {
                                     logger::error("arg2 form doesn't match");
                                     ((RE::TESObjectREFR*) arg2)->DecRefCount();
                                 }
-                                
                             });
                         }
-                    }
-                    else if (is_main_or_task_thread()) {
+                    } else if (is_main_or_task_thread()) {
                         {
                             std::lock_guard l(shader_property_mutex);
                             SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
-                                                        
                         }
                     }
                     return;
@@ -756,10 +760,10 @@ namespace plugin {
             if (auto task_int = SKSE::GetTaskInterface()) {
                 if (ref && ((RE::TESObjectREFR*) ref)->As<RE::TESObjectREFR>()) {
                     auto formid = ((RE::TESObjectREFR*) ref)->As<RE::TESObjectREFR>()->formID;
-                
+
                     SKEEString new_node_string = SKEEString(*node_string);
-                    task_int->AddTask([arg1 = arg1, formid=formid, arg3 = firstperson, gender = gender, node_name = new_node_string] {
-                        auto arg2=RE::TESForm::LookupByID<RE::TESObjectREFR>(formid);
+                    task_int->AddTask([arg1 = arg1, formid = formid, arg3 = firstperson, gender = gender, node_name = new_node_string] {
+                        auto arg2 = RE::TESForm::LookupByID<RE::TESObjectREFR>(formid);
                         std::lock_guard l(shader_property_mutex);
                         UpdateNodeTransformsHook(arg1, arg2, arg3, gender, &node_name);
                     });
@@ -900,14 +904,12 @@ namespace plugin {
                                                } else {
                                                    auto newrefr = RE::TESObjectREFR::LookupByID<RE::TESObjectREFR>(refrid);
                                                    if (arg2 && ((RE::TESObjectREFR*) newrefr)->As<RE::TESObjectREFR>()) {
-                                                       
                                                        if (!newrefr->IsDeleted()) {
                                                            logger::error("Update Morph Reference changed");
                                                            UpdateMorphsHook(arg1, newrefr, arg3);
                                                        } else {
                                                            logger::error("Update Morph Invalid Reference for current game");
                                                        }
-                                                       
                                                    }
                                                }
                                            }
@@ -975,7 +977,7 @@ namespace plugin {
         }
 
         {
-            if (RE::TESObjectREFR* refr=GetUserDataFixed(param_5)) {
+            if (RE::TESObjectREFR* refr = GetUserDataFixed(param_5)) {
                 if (param_4) {
                     RE::FormID refrid = refr->formID;
                     RE::FormID param4id = param_4->formID;
@@ -991,9 +993,8 @@ namespace plugin {
                                     InstallingOverlays = false;
                                     if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(geometry_node_name)) {
                                         found_geo = found_geometry->AsGeometry();
-                                        
+
                                         QueueOverlayCullingFix(found_geo);
-                                        
                                     }
                                 } else {
                                     logger::error("Invalid object or reference for Installing Overlay");
@@ -1004,10 +1005,10 @@ namespace plugin {
                         } else {
                             std::string param2_str(param_2);
                             std::string param3_str(param_3);
-                            task_int->AddTask([refrid, refr,param_4,param4id,inter,param2_str,param3_str,geo,param_5,param_6] {
+                            task_int->AddTask([refrid, refr, param_4, param4id, inter, param2_str, param3_str, geo, param_5, param_6] {
                                 if (refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid) && refr && !(refr->IsDeleted())) {
-                                    if (param_4 == RE::TESForm::LookupByID<RE::TESObjectREFR>(param4id) && param_4 && !(param_4->IsDeleted())) {
-                                        
+                                    if (param_4 == RE::TESForm::LookupByID<RE::TESObjectREFR>(param4id) && param_4 &&
+                                        !(param_4->IsDeleted())) {
                                         if (geo && param_5 && param_4) {
                                             if (geo->_refCount > 0 && param_5->_refCount > 0 && param_4->_refCount > 0) {
                                                 std::lock_guard l(shader_property_mutex);
@@ -1043,7 +1044,6 @@ namespace plugin {
                 logger::info("Install Overlay with no param_5 ref");
             }
         }
-
     }
     static std::atomic<uint32_t> skee_loaded = 0;
     static std::atomic<uint32_t> samrim_loaded = 0;
@@ -1055,7 +1055,7 @@ namespace plugin {
     static bool vr_esl = true;
     static bool do_samrim_name_fix = false;
     auto LoadMainMenuOrig = (void (*)(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4)) 0x0;
-    static void LoadMainMenuHook(uint64_t arg1,uint64_t arg2,uint64_t arg3,uint64_t arg4) {
+    static void LoadMainMenuHook(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4) {
         {
             std::lock_guard lg(loading_game_mutex);
             //IS_LOADING_GAME = true;
@@ -1133,7 +1133,7 @@ namespace plugin {
         if (ini["OverlayFix"]["samrimnamefix"] == "true") {
             do_samrim_name_fix = true;
         }
-        
+
         if (HMODULE handle = GetModuleHandleA("skee64.dll")) {
             MODULEINFO skee64_info;
             GetModuleInformation(GetCurrentProcess(), handle, &skee64_info, sizeof(skee64_info));
@@ -1205,7 +1205,7 @@ namespace plugin {
                     DetourTransactionCommit();
                     if (PARALLEL_TRANSFORM_FIX) {
                         logger::info("SKEE64 1170 parallel node transform workaround applying");
-                        
+
                         UpdateNodeTransformsHook = (void (*)(void*, RE::TESObjectREFR*, bool, bool, const SKEEString* node_name))(
                             (uint64_t) skee64_info.lpBaseOfDll + 0xc68d0);
                         DetourTransactionBegin();
@@ -1345,7 +1345,7 @@ namespace plugin {
 #endif
                     if (PARALLEL_TRANSFORM_FIX) {
                         logger::info("SKEE64 Tags 1170 parallel node transform workaround applying");
-                        
+
                         UpdateNodeTransformsHook = (void (*)(void*, RE::TESObjectREFR*, bool, bool, const SKEEString* node_name))(
                             (uint64_t) skee64_info.lpBaseOfDll + 0xca360);
                         DetourTransactionBegin();
@@ -1420,7 +1420,6 @@ namespace plugin {
                         DetourAttach(&(PVOID&) SetShaderPropertyHook, &SetShaderProperty_fn);
                         DetourTransactionCommit();
                         if (PARALLEL_TRANSFORM_FIX) {
-
                             logger::info("SKEE64 UBE2 parallel transform workaround applying");
                             UpdateNodeTransformsHook = (void (*)(void*, RE::TESObjectREFR*, bool, bool, const SKEEString* node_name))(
                                 (uint64_t) skee64_info.lpBaseOfDll + 0x7c040);
@@ -1945,7 +1944,7 @@ namespace plugin {
             DetourUpdateThread(GetCurrentThread());
             DetourAttach(&(PVOID&) LoadMainMenuOrig, &LoadMainMenuHook);
             DetourTransactionCommit();
-            task_thread_id_ptr = (std::atomic_uint32_t*)REL::VariantID(517237, 403767, 0x2ffd7d0).address();
+            task_pool_ptr = (bool (*)(void)) REL::VariantID(38079, 39033, 0x6488a0).address();
         }
         morph_task_thread = std::thread([] {
             while (true) {
