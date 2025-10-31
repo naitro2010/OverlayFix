@@ -459,14 +459,14 @@ namespace plugin {
             if (GetUserDataFixed(obj) && GetUserDataFixed(obj)->As<RE::TESObjectREFR>()) {
                 refr = GetUserDataFixed(obj)->As<RE::TESObjectREFR>();
                 refrid = refr->GetFormID();
-                logger::info("obj refr {} {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount, refrid);
+                //logger::info("obj refr {} {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount, refrid);
             } else {
-                logger::info("obj no refr {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
+                //logger::info("obj no refr {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
             }
             {
                 if (is_main_or_task_thread()) {
                     if (obj->_refCount || InstallingOverlays) {
-                        logger::info("obj count {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
+                        //logger::info("obj count {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
                         if (InstallingOverlays) {
                             immediate = true;
                         }
@@ -482,13 +482,13 @@ namespace plugin {
                         } else {
                             OverlayCullingFix(obj);
                         }
-                        logger::info("obj count 2 {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
+                        //logger::info("obj count 2 {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
                     } else {
                         logger::warn("obj count warn {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
                     }
                 } else {
                     if (obj->_refCount || InstallingOverlays) {
-                        logger::info("obj count 3 {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
+                        //logger::info("obj count 3 {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
                         immediate = false;
                         if (InstallingOverlays) {
                             immediate = true;
@@ -509,7 +509,7 @@ namespace plugin {
                                 }
                             }
                         }
-                        logger::info("obj count 4 {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
+                        //logger::info("obj count 4 {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
                     } else {
                         logger::warn("obj count warn 3 {} {}", obj->name.c_str() ? obj->name.c_str() : "", obj->_refCount);
                     }
@@ -987,9 +987,9 @@ namespace plugin {
                                 if (geo->_refCount > 0 && param_5->_refCount > 0 && param_4->_refCount > 0) {
                                     std::lock_guard l(shader_property_mutex);
                                     InstallingOverlays = true;
-                                    logger::info("Installing Overlay on main thread");
+                                    //logger::info("Installing Overlay on main thread");
                                     InstallOverlayHook(inter, param_2, param_3, param_4, geo, param_5, param_6);
-                                    logger::info("Done installing Overlay on main thread");
+                                    //logger::info("Done installing Overlay on main thread");
                                     InstallingOverlays = false;
                                     if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(geometry_node_name)) {
                                         found_geo = found_geometry->AsGeometry();
@@ -1013,10 +1013,10 @@ namespace plugin {
                                             if (geo->_refCount > 0 && param_5->_refCount > 0 && param_4->_refCount > 0) {
                                                 std::lock_guard l(shader_property_mutex);
                                                 InstallingOverlays = true;
-                                                logger::info("Installing Overlay on task");
+                                                //logger::info("Installing Overlay on task");
                                                 InstallOverlayHook(inter, param2_str.c_str(), param3_str.c_str(), param_4, geo, param_5,
                                                                    param_6);
-                                                logger::info("Done installing Overlay on task thread");
+                                                //logger::info("Done installing Overlay on task thread");
                                                 InstallingOverlays = false;
                                                 if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(param2_str.c_str())) {
                                                     auto found_geo = found_geometry->AsGeometry();
@@ -1077,7 +1077,7 @@ namespace plugin {
         ini["OverlayFix"]["samrimnamefix"] = "false";
         ini["OverlayFix"]["taskdelaycount"] = "60";
         ini["OverlayFix"]["taskdelaymilliseconds"] = "4";
-        spdlog::set_level(spdlog::level::warn);
+        spdlog::set_level(spdlog::level::info);
         file.read(ini);
         if (!ini["OverlayFix"].has("version")) {
             ini["OverlayFix"]["version"] = "1";
