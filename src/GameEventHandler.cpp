@@ -1,4 +1,4 @@
-#pragma warning(disable : 4100 4189)
+#pragma warning(disable : 4100 4189 4505)
 #include "GameEventHandler.h"
 #include "RE/N/NiSmartPointer.h"
 #include "REL/Relocation.h"
@@ -39,6 +39,30 @@ RE::TESObjectREFR* GetUserDataFixed(RE::NiAVObject* obj) {
 auto task_pool_ptr = (bool (*)(void)) nullptr;
 std::recursive_mutex morph_task_mutex;
 std::recursive_mutex loading_game_mutex;
+std::recursive_mutex custom_main_task_pool_lock;
+std::queue<std::function<void()>> custom_main_task_pool;
+auto original_process_task = (void (*)(void* main, void* arg2, void* arg3, void* arg4)) nullptr;
+static void ProcessMainTasks(void* main,void * arg2, void * arg3, void * arg4) {
+    original_process_task(main,arg2,arg3,arg4);
+    while (true) {
+        auto task = std::function<void()>(nullptr);
+        {
+            std::lock_guard l(custom_main_task_pool_lock);
+            if (custom_main_task_pool.empty()) {
+                return;
+            }
+            task = custom_main_task_pool.front();
+            custom_main_task_pool.pop();
+        }
+        task();
+    }
+}
+static void AddMainTask(std::function<void()> fn) {
+
+    std::lock_guard l(custom_main_task_pool_lock);
+    custom_main_task_pool.push(fn);
+
+}
 std::vector<std::function<void()>> other_task_queue;
 enum MorphsTaskType { PROPERTY, CULLING, APPLY, UPDATE, MAX };
 class MorphsTask {
@@ -193,6 +217,19 @@ namespace plugin {
         }
         return false;
     }
+    static bool is_main_thread() {
+        auto main = RE::Main::GetSingleton();
+        auto isVR = REL::Module::get().IsVR();
+        auto main_thread_id = main->threadID;
+        if (isVR) {
+            main_thread_id = ((uint64_t) main->instance) & 0xFFFFFFFF;
+        }
+        auto current_thread_id = std::this_thread::get_id()._Get_underlying_id();
+        if (current_thread_id == main_thread_id) {
+            return true;
+        }
+        return false;
+    }
     void WalkOverlays(RE::NiAVObject* CurrentObject, bool hide,
                       std::function<void(RE::NiPointer<RE::NiNode>, RE::NiPointer<RE::NiAVObject>, uint32_t)>& sort_callback) {
         if (CurrentObject == nullptr) {
@@ -276,6 +313,7 @@ namespace plugin {
             return;
         }
     }
+
     class Update3DModelOverlayFix : public RE::BSTEventSink<SKSE::NiNodeUpdateEvent> {
             RE::BSEventNotifyControl ProcessEvent(const SKSE::NiNodeUpdateEvent* a_event,
                                                   RE::BSTEventSource<SKSE::NiNodeUpdateEvent>* a_eventSource) {
@@ -299,41 +337,48 @@ namespace plugin {
                         };
                         std::function<void(RE::NiPointer<RE::NiNode>, RE::NiPointer<RE::NiAVObject>, uint32_t)> callback_fn = callback;
                         WalkOverlays(a_event->reference->GetCurrent3D(), false, callback_fn);
-                        for (auto& node_pair: reverse_map) {
-                            std::map<RE::NiAVObject*, uint32_t> original_indices;
-                            std::map<RE::NiAVObject*, uint32_t> new_indices;
-                            for (auto& obj_pair: node_pair.second) {
-                                original_indices.insert_or_assign(obj_pair.second, obj_pair.second->parentIndex);
-                            }
-                            std::vector<RE::NiAVObject*> keys;
-                            for (auto p: original_indices) {
-                                keys.push_back(p.first);
-                            }
-                            int new_index = 0;
-                            if (keys.size() >= 2) {
-                                if (original_indices[keys[0]] < original_indices[keys[1]]) {
-                                    for (int i = (int) original_indices.size() - 1; i >= 0; i -= 1) {
-                                        new_indices.insert_or_assign(keys[new_index], original_indices[keys[i]]);
-                                        new_index += 1;
+                        AddMainTask([=] {
+                            if (a_event->reference->_refCount > 1 && a_event->reference->Is3DLoaded()) {
+                                for (auto& node_pair: reverse_map) {
+                                    std::map<RE::NiAVObject*, uint32_t> original_indices;
+                                    std::map<RE::NiAVObject*, uint32_t> new_indices;
+                                    for (auto& obj_pair: node_pair.second) {
+                                        original_indices.insert_or_assign(obj_pair.second, obj_pair.second->parentIndex);
                                     }
-
-                                    std::map<uint32_t, RE::NiPointer<RE::NiAVObject>> child_objects;
-                                    for (auto index_pair: original_indices) {
-                                        RE::NiPointer<RE::NiAVObject> temporary;
-
-                                        node_pair.first->DetachChildAt(index_pair.second, temporary);
-                                        child_objects.insert_or_assign(new_indices[index_pair.first], temporary);
+                                    std::vector<RE::NiAVObject*> keys;
+                                    for (auto p: original_indices) {
+                                        keys.push_back(p.first);
                                     }
-                                    for (auto& obj_pair: child_objects) {
-                                        node_pair.first->InsertChildAt(obj_pair.first, obj_pair.second.get());
+                                    int new_index = 0;
+                                    if (keys.size() >= 2) {
+                                        if (original_indices[keys[0]] < original_indices[keys[1]]) {
+                                            for (int i = (int) original_indices.size() - 1; i >= 0; i -= 1) {
+                                                new_indices.insert_or_assign(keys[new_index], original_indices[keys[i]]);
+                                                new_index += 1;
+                                            }
+
+                                            std::map<uint32_t, RE::NiPointer<RE::NiAVObject>> child_objects;
+                                            for (auto index_pair: original_indices) {
+                                                RE::NiPointer<RE::NiAVObject> temporary;
+
+                                                node_pair.first->DetachChildAt(index_pair.second, temporary);
+                                                child_objects.insert_or_assign(new_indices[index_pair.first], temporary);
+                                            }
+                                            for (auto& obj_pair: child_objects) {
+                                                node_pair.first->InsertChildAt(obj_pair.first, obj_pair.second.get());
+                                            }
+                                        }
                                     }
                                 }
+                            } else {
+                                logger::error("not reversing overlays because 3D is not loaded or ref count too low");
                             }
-                        }
-                        a_event->reference->DecRefCount();
+                            a_event->reference->DecRefCount();
+                        });
+                        
                     }
                 } else {
-                    logger::error("attempted to reverse overlays on incorrect thread");
+                    logger::error("not reversing overlays because thread is not valid");
                 }
                 return RE::BSEventNotifyControl::kContinue;
             }
@@ -671,7 +716,7 @@ namespace plugin {
                     if (!is_main_or_task_thread()) {
                         ((RE::TESObjectREFR*) arg2)->IncRefCount();
                         if (auto task_int = SKSE::GetTaskInterface()) {
-                            task_int->AddTask([=] {
+                            AddMainTask([=] {
                                 if (arg2 && arg2 == RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid)) {
                                     if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() &&
                                         (((RE::TESObjectREFR*) arg2)->_refCount > 0) &&
@@ -784,7 +829,7 @@ namespace plugin {
                     auto formid = ((RE::TESObjectREFR*) ref)->As<RE::TESObjectREFR>()->formID;
                     
                     SKEEString new_node_string = SKEEString(*node_string);
-                    task_int->AddTask([arg1 = arg1, formid = formid, arg3 = firstperson, gender = gender, node_name = new_node_string] {
+                    AddMainTask([arg1 = arg1, formid = formid, arg3 = firstperson, gender = gender, node_name = new_node_string] {
                         auto arg2 = RE::TESForm::LookupByID<RE::TESObjectREFR>(formid);
                         std::lock_guard l(shader_property_mutex);
                         UpdateNodeTransformsHook(arg1, arg2, arg3, gender, &node_name);
@@ -1045,7 +1090,7 @@ namespace plugin {
                         } else {
                             std::string param2_str(param_2);
                             std::string param3_str(param_3);
-                            task_int->AddTask([refrid, refr, param_4, param4id, inter, param2_str, param3_str, geo, param_5, param_6] {
+                            AddMainTask([refrid, refr, param_4, param4id, inter, param2_str, param3_str, geo, param_5, param_6] {
                                 if (refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid) && refr && !(refr->IsDeleted())) {
                                     if (param_4 == RE::TESForm::LookupByID<RE::TESObjectREFR>(param4id) && param_4 &&
                                         !(param_4->IsDeleted())) {
@@ -2018,7 +2063,7 @@ namespace plugin {
                     for (auto task: queue_copy) {
                         if (auto task_int = SKSE::GetTaskInterface()) {
                             if (task.func && task.skipped == false) {
-                                task_int->AddTask([task] { task.func(false); });
+                                AddMainTask([task] { task.func(false); });
                                 accumulated_tasks += 1;
                                 if (accumulated_tasks >= delay_count) {
                                     std::this_thread::sleep_for(std::chrono::milliseconds(millisecond_delay));
@@ -2033,6 +2078,13 @@ namespace plugin {
                 }
             }
         });
+        original_process_task = (void (*)(void* main, void* arg2, void* arg3, void* arg4)) REL::RelocationID(35565, 36564, 35565).address();
+        if (original_process_task) {
+            DetourTransactionBegin();
+            DetourUpdateThread(GetCurrentThread());
+            DetourAttach(&(PVOID&) original_process_task, &ProcessMainTasks);
+            DetourTransactionCommit();
+        }
         logger::info("onPostPostLoad()");
     }
 
