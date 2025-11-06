@@ -279,57 +279,61 @@ namespace plugin {
     class Update3DModelOverlayFix : public RE::BSTEventSink<SKSE::NiNodeUpdateEvent> {
             RE::BSEventNotifyControl ProcessEvent(const SKSE::NiNodeUpdateEvent* a_event,
                                                   RE::BSTEventSource<SKSE::NiNodeUpdateEvent>* a_eventSource) {
-                if (a_event && a_event->reference && a_event->reference->Is3DLoaded()) {
-                    a_event->reference->IncRefCount();
-                    std::map<RE::NiAVObject*, uint32_t> object_to_overlay_index_map;
-                    std::map<RE::NiNode*, std::map<uint32_t, RE::NiAVObject*>> reverse_map;
-                    auto reverse_map_ptr = &reverse_map;
-                    auto oto_map_ptr = &object_to_overlay_index_map;
-                    auto callback = [=](RE::NiPointer<RE::NiNode> parent, RE::NiPointer<RE::NiAVObject> obj, uint32_t index) {
-                        if (!reverse_map_ptr->contains(parent.get())) {
-                            std::map<uint32_t, RE::NiAVObject*> obj_map;
-                            reverse_map_ptr->insert_or_assign(parent.get(), obj_map);
-                        }
-                        if (parent.get() && obj.get()) {
-                            auto& m = reverse_map_ptr->at(parent.get());
-                            m.insert_or_assign(obj->parentIndex, obj.get());
-                            oto_map_ptr->insert_or_assign(obj.get(), index);
-                        }
-                    };
-                    std::function<void(RE::NiPointer<RE::NiNode>, RE::NiPointer<RE::NiAVObject>, uint32_t)> callback_fn = callback;
-                    WalkOverlays(a_event->reference->GetCurrent3D(), false, callback_fn);
-                    for (auto& node_pair: reverse_map) {
-                        std::map<RE::NiAVObject*, uint32_t> original_indices;
-                        std::map<RE::NiAVObject*, uint32_t> new_indices;
-                        for (auto& obj_pair: node_pair.second) {
-                            original_indices.insert_or_assign(obj_pair.second, obj_pair.second->parentIndex);
-                        }
-                        std::vector<RE::NiAVObject*> keys;
-                        for (auto p: original_indices) {
-                            keys.push_back(p.first);
-                        }
-                        int new_index = 0;
-                        if (keys.size() >= 2) {
-                            if (original_indices[keys[0]] < original_indices[keys[1]]) {
-                                for (int i = (int) original_indices.size() - 1; i >= 0; i -= 1) {
-                                    new_indices.insert_or_assign(keys[new_index], original_indices[keys[i]]);
-                                    new_index += 1;
-                                }
+                if (is_main_or_task_thread()) {
+                    if (a_event && a_event->reference && a_event->reference->Is3DLoaded()) {
+                        a_event->reference->IncRefCount();
+                        std::map<RE::NiAVObject*, uint32_t> object_to_overlay_index_map;
+                        std::map<RE::NiNode*, std::map<uint32_t, RE::NiAVObject*>> reverse_map;
+                        auto reverse_map_ptr = &reverse_map;
+                        auto oto_map_ptr = &object_to_overlay_index_map;
+                        auto callback = [=](RE::NiPointer<RE::NiNode> parent, RE::NiPointer<RE::NiAVObject> obj, uint32_t index) {
+                            if (!reverse_map_ptr->contains(parent.get())) {
+                                std::map<uint32_t, RE::NiAVObject*> obj_map;
+                                reverse_map_ptr->insert_or_assign(parent.get(), obj_map);
+                            }
+                            if (parent.get() && obj.get()) {
+                                auto& m = reverse_map_ptr->at(parent.get());
+                                m.insert_or_assign(obj->parentIndex, obj.get());
+                                oto_map_ptr->insert_or_assign(obj.get(), index);
+                            }
+                        };
+                        std::function<void(RE::NiPointer<RE::NiNode>, RE::NiPointer<RE::NiAVObject>, uint32_t)> callback_fn = callback;
+                        WalkOverlays(a_event->reference->GetCurrent3D(), false, callback_fn);
+                        for (auto& node_pair: reverse_map) {
+                            std::map<RE::NiAVObject*, uint32_t> original_indices;
+                            std::map<RE::NiAVObject*, uint32_t> new_indices;
+                            for (auto& obj_pair: node_pair.second) {
+                                original_indices.insert_or_assign(obj_pair.second, obj_pair.second->parentIndex);
+                            }
+                            std::vector<RE::NiAVObject*> keys;
+                            for (auto p: original_indices) {
+                                keys.push_back(p.first);
+                            }
+                            int new_index = 0;
+                            if (keys.size() >= 2) {
+                                if (original_indices[keys[0]] < original_indices[keys[1]]) {
+                                    for (int i = (int) original_indices.size() - 1; i >= 0; i -= 1) {
+                                        new_indices.insert_or_assign(keys[new_index], original_indices[keys[i]]);
+                                        new_index += 1;
+                                    }
 
-                                std::map<uint32_t, RE::NiPointer<RE::NiAVObject>> child_objects;
-                                for (auto index_pair: original_indices) {
-                                    RE::NiPointer<RE::NiAVObject> temporary;
+                                    std::map<uint32_t, RE::NiPointer<RE::NiAVObject>> child_objects;
+                                    for (auto index_pair: original_indices) {
+                                        RE::NiPointer<RE::NiAVObject> temporary;
 
-                                    node_pair.first->DetachChildAt(index_pair.second, temporary);
-                                    child_objects.insert_or_assign(new_indices[index_pair.first], temporary);
-                                }
-                                for (auto& obj_pair: child_objects) {
-                                    node_pair.first->InsertChildAt(obj_pair.first, obj_pair.second.get());
+                                        node_pair.first->DetachChildAt(index_pair.second, temporary);
+                                        child_objects.insert_or_assign(new_indices[index_pair.first], temporary);
+                                    }
+                                    for (auto& obj_pair: child_objects) {
+                                        node_pair.first->InsertChildAt(obj_pair.first, obj_pair.second.get());
+                                    }
                                 }
                             }
                         }
+                        a_event->reference->DecRefCount();
                     }
-                    a_event->reference->DecRefCount();
+                } else {
+                    logger::error("attempted to reverse overlays on incorrect thread");
                 }
                 return RE::BSEventNotifyControl::kContinue;
             }
@@ -400,7 +404,7 @@ namespace plugin {
                                                                 uint64_t param_4)) 0x0;
     static std::recursive_mutex shader_property_mutex;
     static bool InstallingOverlays = false;
-
+    static bool do_ragdoll_fix = false;
     void OverlayCullingFix(RE::NiAVObject* obj) {
         if (obj) {
             RE::BSGeometry* geo = obj->AsGeometry();
@@ -735,6 +739,24 @@ namespace plugin {
                         {
                             std::lock_guard l(shader_property_mutex);
                             SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
+                            if (auto refr=(RE::TESObjectREFR*) arg2) {
+                                if (auto actor = refr->As<RE::Actor>()) {
+                                    if ((actor->formFlags & RE::TESForm::RecordFlags::kDisabled) == 0) {
+                                        if (actor != RE::PlayerCharacter::GetSingleton()) {
+                                            //actor->Disable();
+                                        }
+                                        if (do_ragdoll_fix == true) {
+                                            actor->PotentiallyFixRagdollState();
+                                        }
+                                        if (actor != RE::PlayerCharacter::GetSingleton()) {
+                                            //actor->Enable(false);
+                                        }
+                                    }
+                                    //actor->Update3DModel();
+                                    //actor->Update3DPosition(true);
+                                }
+                                
+                            }
                         }
                     }
                     return;
@@ -760,13 +782,31 @@ namespace plugin {
             if (auto task_int = SKSE::GetTaskInterface()) {
                 if (ref && ((RE::TESObjectREFR*) ref)->As<RE::TESObjectREFR>()) {
                     auto formid = ((RE::TESObjectREFR*) ref)->As<RE::TESObjectREFR>()->formID;
-
+                    
                     SKEEString new_node_string = SKEEString(*node_string);
                     task_int->AddTask([arg1 = arg1, formid = formid, arg3 = firstperson, gender = gender, node_name = new_node_string] {
                         auto arg2 = RE::TESForm::LookupByID<RE::TESObjectREFR>(formid);
                         std::lock_guard l(shader_property_mutex);
                         UpdateNodeTransformsHook(arg1, arg2, arg3, gender, &node_name);
+                        if (node_name.s == std::string("NPC")) {
+                            if (auto actor = arg2->As<RE::Actor>()) {
+                                if ((actor->formFlags & RE::TESForm::RecordFlags::kDisabled) == 0) {
+                                    if (actor != RE::PlayerCharacter::GetSingleton()) {
+                                        //actor->Disable();
+                                    }
+                                    if (do_ragdoll_fix == true) {
+                                        actor->PotentiallyFixRagdollState();
+                                    }
+                                    if (actor != RE::PlayerCharacter::GetSingleton()) {
+                                        //actor->Enable(false);
+                                    }
+                                }
+                                //actor->Update3DModel();
+                                //actor->Update3DPosition(true);
+                            }
+                        }
                     });
+                    
                 }
             }
         } else {
@@ -1054,6 +1094,7 @@ namespace plugin {
     static bool skip_load = false;
     static bool vr_esl = true;
     static bool do_samrim_name_fix = false;
+    
     auto LoadMainMenuOrig = (void (*)(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4)) 0x0;
     static void LoadMainMenuHook(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4) {
         {
@@ -1077,6 +1118,7 @@ namespace plugin {
         ini["OverlayFix"]["samrimnamefix"] = "false";
         ini["OverlayFix"]["taskdelaycount"] = "60";
         ini["OverlayFix"]["taskdelaymilliseconds"] = "4";
+        ini["OverlayFix"]["ragdollfix"] = "false";
         spdlog::set_level(spdlog::level::info);
         file.read(ini);
         if (!ini["OverlayFix"].has("version")) {
@@ -1092,6 +1134,7 @@ namespace plugin {
             ini["OverlayFix"]["samrimnamefix"] = "false";
             ini["OverlayFix"]["taskdelaycount"] = "60";
             ini["OverlayFix"]["taskdelaymilliseconds"] = "4";
+            ini["OverlayFix"]["ragdollfix"] = "false";
         }
         if (atoi(ini["OverlayFix"]["taskdelaycount"].c_str()) > 0) {
             delay_count = atoi(ini["OverlayFix"]["taskdelaycount"].c_str());
@@ -1133,7 +1176,9 @@ namespace plugin {
         if (ini["OverlayFix"]["samrimnamefix"] == "true") {
             do_samrim_name_fix = true;
         }
-
+        if (ini["OverlayFix"]["ragdollfix"] == "true") {
+            do_ragdoll_fix = true;
+        }
         if (HMODULE handle = GetModuleHandleA("skee64.dll")) {
             MODULEINFO skee64_info;
             GetModuleInformation(GetCurrentProcess(), handle, &skee64_info, sizeof(skee64_info));
