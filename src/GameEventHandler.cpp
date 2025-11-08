@@ -337,43 +337,49 @@ namespace plugin {
                         };
                         std::function<void(RE::NiPointer<RE::NiNode>, RE::NiPointer<RE::NiAVObject>, uint32_t)> callback_fn = callback;
                         WalkOverlays(a_event->reference->GetCurrent3D(), false, callback_fn);
+                        auto handle= a_event->reference->GetHandle();
                         AddMainTask([=] {
-                            if (a_event->reference->_refCount > 1 && a_event->reference->Is3DLoaded()) {
-                                for (auto& node_pair: reverse_map) {
-                                    std::map<RE::NiAVObject*, uint32_t> original_indices;
-                                    std::map<RE::NiAVObject*, uint32_t> new_indices;
-                                    for (auto& obj_pair: node_pair.second) {
-                                        original_indices.insert_or_assign(obj_pair.second, obj_pair.second->parentIndex);
-                                    }
-                                    std::vector<RE::NiAVObject*> keys;
-                                    for (auto p: original_indices) {
-                                        keys.push_back(p.first);
-                                    }
-                                    int new_index = 0;
-                                    if (keys.size() >= 2) {
-                                        if (original_indices[keys[0]] < original_indices[keys[1]]) {
-                                            for (int i = (int) original_indices.size() - 1; i >= 0; i -= 1) {
-                                                new_indices.insert_or_assign(keys[new_index], original_indices[keys[i]]);
-                                                new_index += 1;
+                            if (auto reference = handle.get()) {
+                                if (reference->IsHandleValid()) {
+                                
+                                    if (reference->_refCount > 1 && reference->Is3DLoaded()) {
+                                        for (auto& node_pair: reverse_map) {
+                                            std::map<RE::NiAVObject*, uint32_t> original_indices;
+                                            std::map<RE::NiAVObject*, uint32_t> new_indices;
+                                            for (auto& obj_pair: node_pair.second) {
+                                                original_indices.insert_or_assign(obj_pair.second, obj_pair.second->parentIndex);
                                             }
-
-                                            std::map<uint32_t, RE::NiPointer<RE::NiAVObject>> child_objects;
-                                            for (auto index_pair: original_indices) {
-                                                RE::NiPointer<RE::NiAVObject> temporary;
-
-                                                node_pair.first->DetachChildAt(index_pair.second, temporary);
-                                                child_objects.insert_or_assign(new_indices[index_pair.first], temporary);
+                                            std::vector<RE::NiAVObject*> keys;
+                                            for (auto p: original_indices) {
+                                                keys.push_back(p.first);
                                             }
-                                            for (auto& obj_pair: child_objects) {
-                                                node_pair.first->InsertChildAt(obj_pair.first, obj_pair.second.get());
+                                            int new_index = 0;
+                                            if (keys.size() >= 2) {
+                                                if (original_indices[keys[0]] < original_indices[keys[1]]) {
+                                                    for (int i = (int) original_indices.size() - 1; i >= 0; i -= 1) {
+                                                        new_indices.insert_or_assign(keys[new_index], original_indices[keys[i]]);
+                                                        new_index += 1;
+                                                    }
+
+                                                    std::map<uint32_t, RE::NiPointer<RE::NiAVObject>> child_objects;
+                                                    for (auto index_pair: original_indices) {
+                                                        RE::NiPointer<RE::NiAVObject> temporary;
+
+                                                        node_pair.first->DetachChildAt(index_pair.second, temporary);
+                                                        child_objects.insert_or_assign(new_indices[index_pair.first], temporary);
+                                                    }
+                                                    for (auto& obj_pair: child_objects) {
+                                                        node_pair.first->InsertChildAt(obj_pair.first, obj_pair.second.get());
+                                                    }
+                                                }
                                             }
                                         }
+                                    } else {
+                                        logger::error("not reversing overlays because 3D is not loaded or ref count too low");
                                     }
                                 }
-                            } else {
-                                logger::error("not reversing overlays because 3D is not loaded or ref count too low");
+                                reference->DecRefCount();
                             }
-                            a_event->reference->DecRefCount();
                         });
                         
                     }
