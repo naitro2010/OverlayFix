@@ -42,8 +42,8 @@ std::recursive_mutex loading_game_mutex;
 std::recursive_mutex custom_main_task_pool_lock;
 std::queue<std::function<void()>> custom_main_task_pool;
 auto original_process_task = (void (*)(void* main, void* arg2, void* arg3, void* arg4)) nullptr;
-static void ProcessMainTasks(void* main,void * arg2, void * arg3, void * arg4) {
-    original_process_task(main,arg2,arg3,arg4);
+static void ProcessMainTasks(void* main, void* arg2, void* arg3, void* arg4) {
+    original_process_task(main, arg2, arg3, arg4);
     while (true) {
         auto task = std::function<void()>(nullptr);
         {
@@ -58,10 +58,8 @@ static void ProcessMainTasks(void* main,void * arg2, void * arg3, void * arg4) {
     }
 }
 static void AddMainTask(std::function<void()> fn) {
-
     std::lock_guard l(custom_main_task_pool_lock);
     custom_main_task_pool.push(fn);
-
 }
 std::vector<std::function<void()>> other_task_queue;
 enum MorphsTaskType { PROPERTY, CULLING, APPLY, UPDATE, MAX };
@@ -316,32 +314,36 @@ namespace plugin {
 
     class Update3DModelOverlayFix : public RE::BSTEventSink<SKSE::NiNodeUpdateEvent> {
             RE::BSEventNotifyControl ProcessEvent(const SKSE::NiNodeUpdateEvent* a_event,
-                                                  RE::BSTEventSource<SKSE::NiNodeUpdateEvent>* a_eventSource) {
+                                                  RE::BSTEventSource<SKSE::NiNodeUpdateEvent>* a_eventSource) 
+            {
                 if (is_main_or_task_thread()) {
                     if (a_event && a_event->reference && a_event->reference->Is3DLoaded()) {
-                        a_event->reference->IncRefCount();
-                        std::map<RE::NiAVObject*, uint32_t> object_to_overlay_index_map;
-                        std::map<RE::NiNode*, std::map<uint32_t, RE::NiAVObject*>> reverse_map;
-                        auto reverse_map_ptr = &reverse_map;
-                        auto oto_map_ptr = &object_to_overlay_index_map;
-                        auto callback = [=](RE::NiPointer<RE::NiNode> parent, RE::NiPointer<RE::NiAVObject> obj, uint32_t index) {
-                            if (!reverse_map_ptr->contains(parent.get())) {
-                                std::map<uint32_t, RE::NiAVObject*> obj_map;
-                                reverse_map_ptr->insert_or_assign(parent.get(), obj_map);
-                            }
-                            if (parent.get() && obj.get()) {
-                                auto& m = reverse_map_ptr->at(parent.get());
-                                m.insert_or_assign(obj->parentIndex, obj.get());
-                                oto_map_ptr->insert_or_assign(obj.get(), index);
-                            }
-                        };
-                        std::function<void(RE::NiPointer<RE::NiNode>, RE::NiPointer<RE::NiAVObject>, uint32_t)> callback_fn = callback;
-                        WalkOverlays(a_event->reference->GetCurrent3D(), false, callback_fn);
-                        auto handle= a_event->reference->GetHandle();
-                        AddMainTask([=] {
+                        auto handle = a_event->reference->GetHandle();
+                        AddMainTask([handle] {
                             if (auto reference = handle.get()) {
+                                if (!reference->Is3DLoaded()) {
+                                    return;
+                                }
+                                std::map<RE::NiAVObject*, uint32_t> object_to_overlay_index_map;
+                                std::map<RE::NiNode*, std::map<uint32_t, RE::NiAVObject*>> reverse_map;
+                                auto reverse_map_ptr = &reverse_map;
+                                auto oto_map_ptr = &object_to_overlay_index_map;
+                                auto callback = [=](RE::NiPointer<RE::NiNode> parent, RE::NiPointer<RE::NiAVObject> obj, uint32_t index) {
+                                    if (!reverse_map_ptr->contains(parent.get())) {
+                                        std::map<uint32_t, RE::NiAVObject*> obj_map;
+                                        reverse_map_ptr->insert_or_assign(parent.get(), obj_map);
+                                    }
+                                    if (parent.get() && obj.get()) {
+                                        auto& m = reverse_map_ptr->at(parent.get());
+                                        m.insert_or_assign(obj->parentIndex, obj.get());
+                                        oto_map_ptr->insert_or_assign(obj.get(), index);
+                                    }
+                                };
+                                std::function<void(RE::NiPointer<RE::NiNode>, RE::NiPointer<RE::NiAVObject>, uint32_t)> callback_fn =
+                                    callback;
+                                WalkOverlays(reference->GetCurrent3D(), false, callback_fn);
+
                                 if (reference->IsHandleValid()) {
-                                
                                     if (reference->_refCount > 1 && reference->Is3DLoaded()) {
                                         for (auto& node_pair: reverse_map) {
                                             std::map<RE::NiAVObject*, uint32_t> original_indices;
@@ -381,8 +383,8 @@ namespace plugin {
                                 reference->DecRefCount();
                             }
                         });
-                        
                     }
+                
                 } else {
                     logger::error("not reversing overlays because thread is not valid");
                 }
@@ -679,10 +681,10 @@ namespace plugin {
                         }
                         if ((arg8 && !(((RE::NiAVObject*) arg8)->parent))) {
                             std::lock_guard l(shader_property_mutex);
-                            
+
                             SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
                             if (!is_main_or_task_thread()) {
-                                    logger::warn("skipping transform fix because arg8 is not attached");
+                                logger::warn("skipping transform fix because arg8 is not attached");
                             }
                             return;
                         }
@@ -790,7 +792,7 @@ namespace plugin {
                         {
                             std::lock_guard l(shader_property_mutex);
                             SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
-                            if (auto refr=(RE::TESObjectREFR*) arg2) {
+                            if (auto refr = (RE::TESObjectREFR*) arg2) {
                                 if (auto actor = refr->As<RE::Actor>()) {
                                     if ((actor->formFlags & RE::TESForm::RecordFlags::kDisabled) == 0) {
                                         if (actor != RE::PlayerCharacter::GetSingleton()) {
@@ -806,7 +808,6 @@ namespace plugin {
                                     //actor->Update3DModel();
                                     //actor->Update3DPosition(true);
                                 }
-                                
                             }
                         }
                     }
@@ -833,7 +834,7 @@ namespace plugin {
             if (auto task_int = SKSE::GetTaskInterface()) {
                 if (ref && ((RE::TESObjectREFR*) ref)->As<RE::TESObjectREFR>()) {
                     auto formid = ((RE::TESObjectREFR*) ref)->As<RE::TESObjectREFR>()->formID;
-                    
+
                     SKEEString new_node_string = SKEEString(*node_string);
                     AddMainTask([arg1 = arg1, formid = formid, arg3 = firstperson, gender = gender, node_name = new_node_string] {
                         auto arg2 = RE::TESForm::LookupByID<RE::TESObjectREFR>(formid);
@@ -857,7 +858,6 @@ namespace plugin {
                             }
                         }
                     });
-                    
                 }
             }
         } else {
@@ -1145,7 +1145,7 @@ namespace plugin {
     static bool skip_load = false;
     static bool vr_esl = true;
     static bool do_samrim_name_fix = false;
-    
+
     auto LoadMainMenuOrig = (void (*)(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4)) 0x0;
     static void LoadMainMenuHook(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4) {
         {
