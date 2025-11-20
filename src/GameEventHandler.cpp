@@ -380,7 +380,6 @@ namespace plugin {
                                         logger::error("not reversing overlays because 3D is not loaded or ref count too low");
                                     }
                                 }
-                                reference->DecRefCount();
                             }
                         });
                     }
