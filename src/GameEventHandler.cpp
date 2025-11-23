@@ -836,24 +836,25 @@ namespace plugin {
 
                     SKEEString new_node_string = SKEEString(*node_string);
                     AddMainTask([arg1 = arg1, formid = formid, arg3 = firstperson, gender = gender, node_name = new_node_string] {
-                        auto arg2 = RE::TESForm::LookupByID<RE::TESObjectREFR>(formid);
-                        std::lock_guard l(shader_property_mutex);
-                        UpdateNodeTransformsHook(arg1, arg2, arg3, gender, &node_name);
-                        if (node_name.s == std::string("NPC")) {
-                            if (auto actor = arg2->As<RE::Actor>()) {
-                                if ((actor->formFlags & RE::TESForm::RecordFlags::kDisabled) == 0) {
-                                    if (actor != RE::PlayerCharacter::GetSingleton()) {
-                                        //actor->Disable();
+                        if (auto arg2 = RE::TESForm::LookupByID<RE::TESObjectREFR>(formid)) {
+                            std::lock_guard l(shader_property_mutex);
+                            UpdateNodeTransformsHook(arg1, arg2, arg3, gender, &node_name);
+                            if (node_name.s == std::string("NPC")) {
+                                if (auto actor = arg2->As<RE::Actor>()) {
+                                    if ((actor->formFlags & RE::TESForm::RecordFlags::kDisabled) == 0) {
+                                        if (actor != RE::PlayerCharacter::GetSingleton()) {
+                                            //actor->Disable();
+                                        }
+                                        if (do_ragdoll_fix == true) {
+                                            actor->PotentiallyFixRagdollState();
+                                        }
+                                        if (actor != RE::PlayerCharacter::GetSingleton()) {
+                                            //actor->Enable(false);
+                                        }
                                     }
-                                    if (do_ragdoll_fix == true) {
-                                        actor->PotentiallyFixRagdollState();
-                                    }
-                                    if (actor != RE::PlayerCharacter::GetSingleton()) {
-                                        //actor->Enable(false);
-                                    }
+                                    //actor->Update3DModel();
+                                    //actor->Update3DPosition(true);
                                 }
-                                //actor->Update3DModel();
-                                //actor->Update3DPosition(true);
                             }
                         }
                     });
