@@ -314,8 +314,7 @@ namespace plugin {
 
     class Update3DModelOverlayFix : public RE::BSTEventSink<SKSE::NiNodeUpdateEvent> {
             RE::BSEventNotifyControl ProcessEvent(const SKSE::NiNodeUpdateEvent* a_event,
-                                                  RE::BSTEventSource<SKSE::NiNodeUpdateEvent>* a_eventSource) 
-            {
+                                                  RE::BSTEventSource<SKSE::NiNodeUpdateEvent>* a_eventSource) {
                 if (is_main_or_task_thread()) {
                     if (a_event && a_event->reference && a_event->reference->Is3DLoaded()) {
                         auto handle = a_event->reference->GetHandle();
@@ -383,7 +382,7 @@ namespace plugin {
                             }
                         });
                     }
-                
+
                 } else {
                     logger::error("not reversing overlays because thread is not valid");
                 }
@@ -1170,7 +1169,6 @@ namespace plugin {
         ini["OverlayFix"]["taskdelaycount"] = "60";
         ini["OverlayFix"]["taskdelaymilliseconds"] = "4";
         ini["OverlayFix"]["ragdollfix"] = "false";
-        ini["OverlayFix"]["cbpctest"] = "false";
         spdlog::set_level(spdlog::level::info);
         file.read(ini);
         if (!ini["OverlayFix"].has("version")) {
@@ -1187,7 +1185,6 @@ namespace plugin {
             ini["OverlayFix"]["taskdelaycount"] = "60";
             ini["OverlayFix"]["taskdelaymilliseconds"] = "4";
             ini["OverlayFix"]["ragdollfix"] = "false";
-            ini["OverlayFix"]["cbpctest"] = "false";
         }
         if (atoi(ini["OverlayFix"]["taskdelaycount"].c_str()) > 0) {
             delay_count = atoi(ini["OverlayFix"]["taskdelaycount"].c_str());
@@ -1231,25 +1228,6 @@ namespace plugin {
         }
         if (ini["OverlayFix"]["ragdollfix"] == "true") {
             do_ragdoll_fix = true;
-        }
-        if (ini["OverlayFix"]["cbpctest"] == "true") {
-            logger::info("Preparing to patch CBPC weight check");
-            if (HMODULE handle = GetModuleHandleA("cbp.dll")) {
-                logger::info("Got CBPC information");
-                MODULEINFO cbpc_info;
-                GetModuleInformation(GetCurrentProcess(), handle, &cbpc_info, sizeof(cbpc_info));
-                uint8_t signature1170[] = {0x0f, 0xb6, 0xdb, 0x0f, 0x2f, 0x0d, 0x04, 0xc5, 0x09, 0x00};
-                if ((cbpc_info.SizeOfImage >= 0x46a70)) {
-                    if (memcmp(signature1170, (void*)((uintptr_t)cbpc_info.lpBaseOfDll + (uintptr_t)0x46a5e), sizeof(signature1170)) ==
-                        0) 
-                    {
-                        logger::info("Found compatible 1170 cbp.dll version, patching now");
-                        uintptr_t patch0 = ((uintptr_t) cbpc_info.lpBaseOfDll + (uintptr_t) 0x46a68);
-                        REL::safe_write(patch0, (uint8_t*) "\x31\xdb\x90\x90", 4);
-                        logger::info("Found compatible 1170 cbp.dll version, patching completed");
-                    }
-                }
-            }
         }
         if (HMODULE handle = GetModuleHandleA("skee64.dll")) {
             MODULEINFO skee64_info;
@@ -1681,6 +1659,12 @@ namespace plugin {
                     REL::safe_write(patch2, (uint8_t*) "\x90\x90\x90\x90\x90\x90\x90\x90", 8);
                     REL::safe_write(patch3, (uint8_t*) "\x8b\xd1\x90\x90", 4);
                     REL::safe_write(patch4, (uint8_t*) "\x90\x90", 2);
+
+                    nullSkeletonFix = new SKEENullFix((uint64_t) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x90000));
+                    const uint8_t* nullSkeletonCode = nullSkeletonFix->getCode();
+                    REL::safe_write(((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x186d20), (uint8_t*) (&nullSkeletonCode),
+                                    sizeof(uint64_t));
+                    logger::info("SKEE64 041914 null skeleton fix applied");
 #ifdef CRASH_FIX_ALPHA
 
                     DeepCopyDetour =
