@@ -165,7 +165,7 @@ static void CoSaveStoreLog(void* cosaveinterface, void * obj, unsigned int stack
     CoSaveStoreLogAddr(cosaveinterface,obj,stackID);
     logger::info("Co-Save logging ends here");
 }*/
-static bool keep_face_textures = false;
+static bool keep_face_textures = true;
 #undef GetObject
 namespace plugin {
     void CullingFix(RE::BSGeometry* found_geo) {
@@ -400,20 +400,37 @@ namespace plugin {
                                                                         RE::BSLightingShaderMaterialBase* lighting_material =
                                                                             (RE::BSLightingShaderMaterialBase*) material;
                                                                         if (auto tex_set = lighting_material->GetTextureSet()) {
+                                                                            if (auto default_texture_path =
+                                                                                    ((RE::BGSTextureSet*) tex_set.get())
+                                                                                        ->GetTexturePath(
+                                                                                            RE::BSTextureSet::Texture::kDiffuse)) {
+                                                                                logger::warn("default diffuse texture path {}",
+                                                                                             default_texture_path);
+                                                                            }
                                                                             if (face_texture_set != nullptr) {
                                                                                 if (face_texture_set->_refCount > 1) {
                                                                                     logger::warn("ref count should not be {}",
                                                                                                  face_texture_set->_refCount);
                                                                                 }
+                                                                                lighting_material->ClearTextures();
+                                                                                if (auto original_texture_path = ((RE::BGSTextureSet*)face_texture_set.get())
+                                                                                    ->GetTexturePath(
+                                                                                        RE::BSTextureSet::Texture::kDiffuse)) {
+                                                                                    logger::warn("original diffuse texture path {}",original_texture_path);
+                                                                                }
                                                                                 lighting_material->SetTextureSet(
                                                                                     RE::NiPointer<RE::BGSTextureSet>(
                                                                                         (RE::BGSTextureSet*) face_texture_set.get()));
+                                                                                logger::warn(
+                                                                                    "got face texture set, restoring now");
                                                                                 auto raw_ptr = (RE::BGSTextureSet*) face_texture_set.get();
                                                                                 face_texture_set = nullptr;
                                                                                 if (raw_ptr->_refCount > 1) {
                                                                                     logger::warn("ref count should not be {}",
                                                                                                  raw_ptr->_refCount);
                                                                                 }
+                                                                                //geo->textures
+                                                                                shader_prop->SetMaterial(lighting_material, true);
                                                                                 shader_prop->SetupGeometry(geo);
                                                                                 shader_prop->FinishSetupGeometry(geo);
                                                                             }
@@ -1307,8 +1324,8 @@ namespace plugin {
             ini["OverlayFix"]["taskdelaymilliseconds"] = "4";
             ini["OverlayFix"]["ragdollfix"] = "false";
         }
-        if (ini["OverlayFix"]["keepfacetextures"] == "true") {
-            keep_face_textures = true;
+        if (ini["OverlayFix"]["keepfacetextures"] == "false") {
+            keep_face_textures = false;
         }
         if (atoi(ini["OverlayFix"]["taskdelaycount"].c_str()) > 0) {
             delay_count = atoi(ini["OverlayFix"]["taskdelaycount"].c_str());
