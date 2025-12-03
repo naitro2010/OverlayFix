@@ -338,9 +338,10 @@ namespace plugin {
                                                     if (auto tex_set = lighting_material->GetTextureSet()) {
                                                         if (face_texture_set == nullptr) {
                                                             logger::warn("got face texture set, copying to new material");
-                                                            tex_set->CreateDeepCopy(face_texture_set);
+                                                            
                                                             {
                                                                 std::lock_guard l(face_texture_mutex);
+                                                                tex_set->CreateDeepCopy(face_texture_set);
                                                                 HeadPartID = head_part->formID;
                                                                 face_texture_actor_refid = actor->formID;
                                                                 OriginalUpdateEquipment(arg1, actor);
@@ -364,6 +365,8 @@ namespace plugin {
         }
         return OriginalUpdateEquipment(arg1, actor);
     }
+    static volatile bool test = false;
+    static std::string test_path("blah.dds\x00                                                                                                                          ");
     class Update3DModelOverlayFix : public RE::BSTEventSink<SKSE::NiNodeUpdateEvent> {
             RE::BSEventNotifyControl ProcessEvent(const SKSE::NiNodeUpdateEvent* a_event,
                                                   RE::BSTEventSource<SKSE::NiNodeUpdateEvent>* a_eventSource) {
@@ -401,7 +404,7 @@ namespace plugin {
                                                                             (RE::BSLightingShaderMaterialBase*) material;
                                                                         if (auto tex_set = lighting_material->GetTextureSet()) {
                                                                             if (auto default_texture_path =
-                                                                                    ((RE::BGSTextureSet*) tex_set.get())
+                                                                                    ((RE::BSTextureSet*) tex_set.get())
                                                                                         ->GetTexturePath(
                                                                                             RE::BSTextureSet::Texture::kDiffuse)) {
                                                                                 logger::warn("default diffuse texture path {}",
@@ -413,26 +416,66 @@ namespace plugin {
                                                                                                  face_texture_set->_refCount);
                                                                                 }
                                                                                 lighting_material->ClearTextures();
-                                                                                if (auto original_texture_path = ((RE::BGSTextureSet*)face_texture_set.get())
+                                                                                if (auto original_texture_path = ((RE::BSTextureSet*)face_texture_set.get())
                                                                                     ->GetTexturePath(
                                                                                         RE::BSTextureSet::Texture::kDiffuse)) {
                                                                                     logger::warn("original diffuse texture path {}",original_texture_path);
                                                                                 }
+                                                                                
+                                                                                if (test == true) {
+                                                                                    auto test_path_char = test_path.c_str();
+                                                                                    ((RE::BSTextureSet*) face_texture_set.get())
+                                                                                        ->SetTexturePath(
+                                                                                            RE::BSTextureSet::Texture::kDiffuse,test_path_char);
+                                                                                }
                                                                                 lighting_material->SetTextureSet(
-                                                                                    RE::NiPointer<RE::BGSTextureSet>(
-                                                                                        (RE::BGSTextureSet*) face_texture_set.get()));
+                                                                                    RE::NiPointer<RE::BSTextureSet>(
+                                                                                        (RE::BSTextureSet*) face_texture_set.get()));
+                                                                                auto LoadTexture =
+                                                                                    (void (*)(const char * path,char arg2,RE::NiPointer<RE::NiTexture>& texture,bool arg4)) REL::RelocationID(
+                                                                                        98986, 105640, 98986)
+                                                                                        .address();              
+                                                                                if (auto new_tex_set = lighting_material->GetTextureSet()) {
+                                                                                    for (size_t t_i = 0; t_i < 7; t_i += 1) {
+                                                                                        {
+                                                                                            uintptr_t temp_texture = 0x0;
+                                                                                            RE::NiPointer<RE::NiTexture> temp_texture_ni;
+                                                                                            LoadTexture(
+                                                                                            ((RE::BGSTextureSet*) face_texture_set.get())
+                                                                                                ->GetTexturePath(
+                                                                                                    (RE::BSTextureSet::Texture) t_i),
+                                                                                                1, temp_texture_ni,
+                                                                                                false);
+                                                                                            temp_texture =
+                                                                                                (uintptr_t) temp_texture_ni.get();
+                                                                                            new_tex_set->SetTexture(
+                                                                                                (RE::BSTextureSet::Texture) t_i,
+                                                                                                (RE::NiSourceTexture*) (&temp_texture));
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                                
                                                                                 logger::warn(
                                                                                     "got face texture set, restoring now");
-                                                                                auto raw_ptr = (RE::BGSTextureSet*) face_texture_set.get();
+                                                                                auto raw_ptr = (RE::BSTextureSet*) face_texture_set.get();
                                                                                 face_texture_set = nullptr;
                                                                                 if (raw_ptr->_refCount > 1) {
                                                                                     logger::warn("ref count should not be {}",
                                                                                                  raw_ptr->_refCount);
                                                                                 }
+                                                                                auto UpdateFace =
+                                                                                    (uint64_t (*)(RE::NiAVObject*)) REL::VariantID(
+                                                                                        26458, 27044, 0x3eb710)
+                                                                                        .address();
+                                                                                //UpdateFace(actor->GetFaceNodeSkinned());
                                                                                 //geo->textures
-                                                                                shader_prop->SetMaterial(lighting_material, true);
+                                                                                auto current_texture_set =
+                                                                                    lighting_material->GetTextureSet();
+                                                                                lighting_material->OnLoadTextureSet(0,nullptr);
+                                                                                lighting_material->SetTextureSet(current_texture_set);
                                                                                 shader_prop->SetupGeometry(geo);
                                                                                 shader_prop->FinishSetupGeometry(geo);
+                                                                                
                                                                             }
                                                                         }
                                                                     }
@@ -1295,7 +1338,7 @@ namespace plugin {
         ini["OverlayFix"]["version"] = "1";
         ini["OverlayFix"]["reverse"] = "default";
         ini["OverlayFix"]["skipload"] = "false";
-        ini["OverlayFix"]["keepfacetextures"] = "true";
+        ini["OverlayFix"]["keepfacetextures"] = "default";
         ini["OverlayFix"]["nocull"] = "default";
         ini["OverlayFix"]["hideunusedoverlays"] = "default";
         ini["OverlayFix"]["savedanger"] = "default";
@@ -1312,7 +1355,7 @@ namespace plugin {
             ini["OverlayFix"]["version"] = "1";
             ini["OverlayFix"]["reverse"] = "default";
             ini["OverlayFix"]["skipload"] = "false";
-            ini["OverlayFix"]["keepfacetextures"] = "true";
+            ini["OverlayFix"]["keepfacetextures"] = "default";
             ini["OverlayFix"]["nocull"] = "default";
             ini["OverlayFix"]["hideunusedoverlays"] = "default";
             ini["OverlayFix"]["savedanger"] = "default";
