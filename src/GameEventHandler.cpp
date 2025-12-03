@@ -165,6 +165,7 @@ static void CoSaveStoreLog(void* cosaveinterface, void * obj, unsigned int stack
     CoSaveStoreLogAddr(cosaveinterface,obj,stackID);
     logger::info("Co-Save logging ends here");
 }*/
+static bool keep_face_textures = false;
 #undef GetObject
 namespace plugin {
     void CullingFix(RE::BSGeometry* found_geo) {
@@ -311,12 +312,130 @@ namespace plugin {
             return;
         }
     }
+    std::recursive_mutex face_texture_mutex;
+    RE::FormID face_texture_actor_refid;
+    RE::FormID HeadPartID;
+    RE::NiObjectPtr face_texture_set; 
+    auto OriginalUpdateEquipment = (void (*)(void* arg1, RE::Actor* actor)) nullptr;
+    void UpdateEquipmentHook(void* arg1, RE::Actor* actor) {
+        if (is_main_or_task_thread()) {
+            if (actor) {
+                if (auto actor_root = actor->Get3D1(false)) {
+                    if (auto npc = actor->GetActorBase()) {
+                        if (auto head_part = npc->GetHeadPartByType(RE::TESNPC::HeadPartType::kFace)) {
+                                
+                                if (auto node = actor_root->GetObjectByName(head_part->formEditorID)) {
+                                    if (auto geo = node->AsGeometry()) {
+                                        auto geodata = geo->GetGeometryRuntimeData();
+                                        if (geodata.properties[1].get() != nullptr &&
+                                            geodata.properties[1].get()->GetType() == RE::NiShadeProperty::Type::kShade) {
+                                            auto shader_prop = (RE::BSLightingShaderProperty*) (geodata.properties[1].get());
+                                            if (auto material = shader_prop->material) {
+                                                
+                                                if (material->GetType() == RE::BSShaderMaterial::Type::kLighting) {
+                                                    RE::BSLightingShaderMaterialBase* lighting_material =
+                                                        (RE::BSLightingShaderMaterialBase*) material;
+                                                    if (auto tex_set = lighting_material->GetTextureSet()) {
+                                                        if (face_texture_set == nullptr) {
+                                                            logger::warn("got face texture set, copying to new material");
+                                                            tex_set->CreateDeepCopy(face_texture_set);
+                                                            {
+                                                                std::lock_guard l(face_texture_mutex);
+                                                                HeadPartID = head_part->formID;
+                                                                face_texture_actor_refid = actor->formID;
+                                                                OriginalUpdateEquipment(arg1, actor);
+                                                            }
+                                                            return;
+                                                        }
+                                                    }
+                                                }
 
+                                            }
+                                        }
+                                    }
+                                    
+
+                                }
+                            
+                        }
+                    }
+                }
+            }
+        }
+        return OriginalUpdateEquipment(arg1, actor);
+    }
     class Update3DModelOverlayFix : public RE::BSTEventSink<SKSE::NiNodeUpdateEvent> {
             RE::BSEventNotifyControl ProcessEvent(const SKSE::NiNodeUpdateEvent* a_event,
                                                   RE::BSTEventSource<SKSE::NiNodeUpdateEvent>* a_eventSource) {
                 if (is_main_or_task_thread()) {
+                    
                     if (a_event && a_event->reference && a_event->reference->Is3DLoaded()) {
+                        if (keep_face_textures == true) 
+                        {
+                            std::lock_guard fl(face_texture_mutex);
+                            if (auto actor = a_event->reference->As<RE::Actor>()) 
+                            {
+                                if (auto actor_root = actor->Get3D1(false)) 
+                                {
+                                    if (auto npc = actor->GetActorBase()) 
+                                    {
+                                        if (auto head_part = npc->GetHeadPartByType(RE::TESNPC::HeadPartType::kFace)) 
+                                        {
+                                            if (auto node = actor_root->GetObjectByName(head_part->formEditorID)) 
+                                            {
+                                                if (actor->GetFormID() == face_texture_actor_refid) 
+                                                {
+
+                                                    if (head_part->formID == HeadPartID) 
+                                                    {
+                                                        if (auto geo = node->AsGeometry()) {
+                                                            auto geodata = geo->GetGeometryRuntimeData();
+                                                            if (geodata.properties[1].get() != nullptr &&
+                                                                geodata.properties[1].get()->GetType() ==
+                                                                    RE::NiShadeProperty::Type::kShade) {
+                                                                auto shader_prop =
+                                                                    (RE::BSLightingShaderProperty*) (geodata.properties[1].get());
+                                                                if (auto material = shader_prop->material) {
+                                                                    if (material->GetType() == RE::BSShaderMaterial::Type::kLighting) {
+                                                                        RE::BSLightingShaderMaterialBase* lighting_material =
+                                                                            (RE::BSLightingShaderMaterialBase*) material;
+                                                                        if (auto tex_set = lighting_material->GetTextureSet()) {
+                                                                            if (face_texture_set != nullptr) {
+                                                                                if (face_texture_set->_refCount > 1) {
+                                                                                    logger::warn("ref count should not be {}",
+                                                                                                 face_texture_set->_refCount);
+                                                                                }
+                                                                                lighting_material->SetTextureSet(
+                                                                                    RE::NiPointer<RE::BGSTextureSet>(
+                                                                                        (RE::BGSTextureSet*) face_texture_set.get()));
+                                                                                auto raw_ptr = (RE::BGSTextureSet*) face_texture_set.get();
+                                                                                face_texture_set = nullptr;
+                                                                                if (raw_ptr->_refCount > 1) {
+                                                                                    logger::warn("ref count should not be {}",
+                                                                                                 raw_ptr->_refCount);
+                                                                                }
+                                                                                shader_prop->SetupGeometry(geo);
+                                                                                shader_prop->FinishSetupGeometry(geo);
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+
+                                                }
+                                            
+                                            }
+                                        }
+                                    }
+                                }
+
+                            }
+                            if (face_texture_set != nullptr) {
+                                face_texture_set = nullptr;
+                            }
+                        }
                         auto handle = a_event->reference->GetHandle();
                         AddMainTask([handle] {
                             if (auto reference = handle.get()) {
@@ -1159,6 +1278,7 @@ namespace plugin {
         ini["OverlayFix"]["version"] = "1";
         ini["OverlayFix"]["reverse"] = "default";
         ini["OverlayFix"]["skipload"] = "false";
+        ini["OverlayFix"]["keepfacetextures"] = "true";
         ini["OverlayFix"]["nocull"] = "default";
         ini["OverlayFix"]["hideunusedoverlays"] = "default";
         ini["OverlayFix"]["savedanger"] = "default";
@@ -1175,6 +1295,7 @@ namespace plugin {
             ini["OverlayFix"]["version"] = "1";
             ini["OverlayFix"]["reverse"] = "default";
             ini["OverlayFix"]["skipload"] = "false";
+            ini["OverlayFix"]["keepfacetextures"] = "true";
             ini["OverlayFix"]["nocull"] = "default";
             ini["OverlayFix"]["hideunusedoverlays"] = "default";
             ini["OverlayFix"]["savedanger"] = "default";
@@ -1185,6 +1306,9 @@ namespace plugin {
             ini["OverlayFix"]["taskdelaycount"] = "60";
             ini["OverlayFix"]["taskdelaymilliseconds"] = "4";
             ini["OverlayFix"]["ragdollfix"] = "false";
+        }
+        if (ini["OverlayFix"]["keepfacetextures"] == "true") {
+            keep_face_textures = true;
         }
         if (atoi(ini["OverlayFix"]["taskdelaycount"].c_str()) > 0) {
             delay_count = atoi(ini["OverlayFix"]["taskdelaycount"].c_str());
@@ -2095,6 +2219,19 @@ namespace plugin {
             DetourUpdateThread(GetCurrentThread());
             DetourAttach(&(PVOID&) original_process_task, &ProcessMainTasks);
             DetourTransactionCommit();
+        }
+        if (keep_face_textures == true) 
+        {
+            logger::info("Adding keep face textures patch");
+            OriginalUpdateEquipment =
+                (void (*)(void* arg1,RE::Actor* actor)) REL::RelocationID(38404, 39395, 38404).address();
+            if (OriginalUpdateEquipment) {
+                DetourTransactionBegin();
+                DetourUpdateThread(GetCurrentThread());
+                DetourAttach(&(PVOID&) OriginalUpdateEquipment, &UpdateEquipmentHook);
+                DetourTransactionCommit();
+                logger::info("Keep face textures patch applied");
+            }
         }
         logger::info("onPostPostLoad()");
     }
