@@ -828,7 +828,7 @@ namespace plugin {
     */
     static void UpdateNodeTransformsHook_fn(void* arg1, RE::TESObjectREFR* ref, bool firstperson, bool gender,
                                             const SKEEString* node_string) {
-        if (PARALLEL_TRANSFORM_FIX) {
+        if (PARALLEL_TRANSFORM_FIX && !is_main_or_task_thread()) {
             if (auto task_int = SKSE::GetTaskInterface()) {
                 if (ref && ((RE::TESObjectREFR*) ref)->As<RE::TESObjectREFR>()) {
                     auto formid = ((RE::TESObjectREFR*) ref)->As<RE::TESObjectREFR>()->formID;
@@ -861,6 +861,11 @@ namespace plugin {
             }
         } else {
             UpdateNodeTransformsHook(arg1, ref, firstperson, gender, node_string);
+            if (auto actor = ref->As<RE::Actor>()) {
+                if (do_ragdoll_fix == true) {
+                    actor->PotentiallyFixRagdollState();
+                }
+            }
         }
     }
 #ifdef PARALLEL_MORPH_WORKAROUND
