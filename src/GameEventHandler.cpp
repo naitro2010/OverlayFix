@@ -1080,6 +1080,16 @@ namespace plugin {
                         if (is_main_or_task_thread()) {
                             if (geo && param_5 && param_4) {
                                 if (geo->_refCount > 0 && param_5->_refCount > 0 && param_4->_refCount > 0) {
+                                    if (auto refr_3d = refr->Get3D1(false)) {
+                                        auto new_geo = refr_3d->GetObjectByName(geo->name);
+                                        if (geo != new_geo) {
+                                            logger::warn("geometry doesn't match source pointer, skipping");
+                                            return;
+                                        }
+                                    } else {
+                                        logger::warn("reference had no 3D when installing overlays");
+                                        return;                                   
+                                    }
                                     std::lock_guard l(shader_property_mutex);
                                     InstallingOverlays = true;
                                     //logger::info("Installing Overlay on main thread");
@@ -1100,36 +1110,49 @@ namespace plugin {
                         } else {
                             std::string param2_str(param_2);
                             std::string param3_str(param_3);
-                            AddMainTask([refrid, refr, param_4, param4id, inter, param2_str, param3_str, geo, param_5, param_6] {
-                                if (refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid) && refr && !(refr->IsDeleted())) {
-                                    if (param_4 == RE::TESForm::LookupByID<RE::TESObjectREFR>(param4id) && param_4 &&
-                                        !(param_4->IsDeleted())) {
-                                        if (geo && param_5 && param_4) {
-                                            if (geo->_refCount > 0 && param_5->_refCount > 0 && param_4->_refCount > 0) {
-                                                std::lock_guard l(shader_property_mutex);
-                                                InstallingOverlays = true;
-                                                //logger::info("Installing Overlay on task");
-                                                InstallOverlayHook(inter, param2_str.c_str(), param3_str.c_str(), param_4, geo, param_5,
-                                                                   param_6);
-                                                //logger::info("Done installing Overlay on task thread");
-                                                InstallingOverlays = false;
-                                                if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(param2_str.c_str())) {
-                                                    auto found_geo = found_geometry->AsGeometry();
-                                                    QueueOverlayCullingFix(found_geo);
+                            if (geo) {
+                                    RE::BSFixedString geometry_name = geo->name;
+                                    AddMainTask([geometry_name,refrid, refr, param_4, param4id, inter, param2_str, param3_str, geo, param_5, param_6] {
+                                        if (refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid) && refr && !(refr->IsDeleted())) {
+                                            if (param_4 == RE::TESForm::LookupByID<RE::TESObjectREFR>(param4id) && param_4 &&
+                                                !(param_4->IsDeleted())) {
+                                                if (auto refr_3d=refr->Get3D1(false)) {
+                                                    auto new_geo = refr_3d->GetObjectByName(geometry_name);
+                                                    if (geo != new_geo) {
+                                                        logger::warn("geometry doesn't match source pointer, skipping");
+                                                        return;
+                                                    }
+                                                } else {
+                                                    logger::warn("reference had no 3D when installing overlays");
+                                                    return;                                   
+                                                }
+                                                if (geo && param_5 && param_4) {
+                                                    if (geo->_refCount > 0 && param_5->_refCount > 0 && param_4->_refCount > 0) {
+                                                        std::lock_guard l(shader_property_mutex);
+                                                        InstallingOverlays = true;
+                                                        //logger::info("Installing Overlay on task");
+                                                        InstallOverlayHook(inter, param2_str.c_str(), param3_str.c_str(), param_4, geo,
+                                                                           param_5, param_6);
+                                                        //logger::info("Done installing Overlay on task thread");
+                                                        InstallingOverlays = false;
+                                                        if (RE::NiAVObject* found_geometry = param_5->GetObjectByName(param2_str.c_str())) {
+                                                            auto found_geo = found_geometry->AsGeometry();
+                                                            QueueOverlayCullingFix(found_geo);
+                                                        }
+                                                    } else {
+                                                        logger::error("Invalid object or reference for Installing Overlay");
+                                                    }
+                                                } else {
+                                                    logger::error("Invalid object or reference");
                                                 }
                                             } else {
-                                                logger::error("Invalid object or reference for Installing Overlay");
+                                                logger::warn("Tried to Install Overlay with collected param_4");
                                             }
                                         } else {
-                                            logger::error("Invalid object or reference");
+                                            logger::warn("Tried Install Overlay with collected refr");
                                         }
-                                    } else {
-                                        logger::warn("Tried to Install Overlay with collected param_4");
-                                    }
-                                } else {
-                                    logger::warn("Tried Install Overlay with collected refr");
-                                }
-                            });
+                                    });
+                            }
                         }
                     }
                 } else {
