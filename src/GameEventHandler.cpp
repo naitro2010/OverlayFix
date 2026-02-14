@@ -719,7 +719,7 @@ namespace plugin {
                             logger::error("No User Data for OBJ 8");
                         }
                     }
-                    if (!is_main_or_task_thread()) {
+                    if (!is_main_thread()) {
                         ((RE::TESObjectREFR*) arg2)->IncRefCount();
                         if (auto task_int = SKSE::GetTaskInterface()) {
                             AddMainTask([=] {
@@ -786,7 +786,7 @@ namespace plugin {
                                 }
                             });
                         }
-                    } else if (is_main_or_task_thread()) {
+                    } else if (is_main_thread()) {
                         {
                             std::lock_guard l(shader_property_mutex);
                             SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
@@ -797,7 +797,7 @@ namespace plugin {
                                             //actor->Disable();
                                         }
                                         if (do_ragdoll_fix == true) {
-                                            actor->PotentiallyFixRagdollState();
+                                            //actor->PotentiallyFixRagdollState();
                                         }
                                         if (actor != RE::PlayerCharacter::GetSingleton()) {
                                             //actor->Enable(false);
@@ -828,7 +828,7 @@ namespace plugin {
     */
     static void UpdateNodeTransformsHook_fn(void* arg1, RE::TESObjectREFR* ref, bool firstperson, bool gender,
                                             const SKEEString* node_string) {
-        if (PARALLEL_TRANSFORM_FIX && !is_main_or_task_thread()) {
+        if (PARALLEL_TRANSFORM_FIX && !is_main_thread()) {
             if (auto task_int = SKSE::GetTaskInterface()) {
                 if (ref && ((RE::TESObjectREFR*) ref)->As<RE::TESObjectREFR>()) {
                     auto formid = ((RE::TESObjectREFR*) ref)->As<RE::TESObjectREFR>()->formID;
@@ -845,13 +845,14 @@ namespace plugin {
                                             //actor->Disable();
                                         }
                                         if (do_ragdoll_fix == true) {
-                                            actor->PotentiallyFixRagdollState();
+                                            //actor->PotentiallyFixRagdollState();
                                         }
                                         if (actor != RE::PlayerCharacter::GetSingleton()) {
                                             //actor->Enable(false);
                                         }
                                     }
                                     //actor->Update3DModel();
+                                    // 
                                     //actor->Update3DPosition(true);
                                 }
                             }
@@ -863,10 +864,22 @@ namespace plugin {
             UpdateNodeTransformsHook(arg1, ref, firstperson, gender, node_string);
             if (auto actor = ref->As<RE::Actor>()) {
                 if (do_ragdoll_fix == true) {
-                    actor->PotentiallyFixRagdollState();
+                    //actor->PotentiallyFixRagdollState();
                 }
             }
         }
+    }
+    static auto UpdateWorldDataTaskHook = (void (*)(uint64_t* TaskObj)) nullptr;
+    static void UpdateWorldDataTask_fn(uint64_t* TaskObj) {
+    
+        auto obj = (RE::NiAVObject*) (TaskObj[1]);
+        RE::NiUpdateData data;
+        data.time = 0;
+        data.flags.set(RE::NiUpdateData::Flag::kDirty);
+        data.flags.set(RE::NiUpdateData::Flag::kDisableCollision);
+        obj->UpdateWorldData(&data);
+        UpdateWorldDataTaskHook(TaskObj);
+        
     }
 #ifdef PARALLEL_MORPH_WORKAROUND
 
@@ -1088,7 +1101,7 @@ namespace plugin {
                                         }
                                     } else {
                                         logger::warn("reference had no 3D when installing overlays");
-                                        return;                                   
+                                        return;
                                     }
                                     std::lock_guard l(shader_property_mutex);
                                     InstallingOverlays = true;
@@ -1111,12 +1124,13 @@ namespace plugin {
                             std::string param2_str(param_2);
                             std::string param3_str(param_3);
                             if (geo) {
-                                    RE::BSFixedString geometry_name = geo->name;
-                                    AddMainTask([geometry_name,refrid, refr, param_4, param4id, inter, param2_str, param3_str, geo, param_5, param_6] {
+                                RE::BSFixedString geometry_name = geo->name;
+                                AddMainTask(
+                                    [geometry_name, refrid, refr, param_4, param4id, inter, param2_str, param3_str, geo, param_5, param_6] {
                                         if (refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid) && refr && !(refr->IsDeleted())) {
                                             if (param_4 == RE::TESForm::LookupByID<RE::TESObjectREFR>(param4id) && param_4 &&
                                                 !(param_4->IsDeleted())) {
-                                                if (auto refr_3d=refr->Get3D1(false)) {
+                                                if (auto refr_3d = refr->Get3D1(false)) {
                                                     auto new_geo = refr_3d->GetObjectByName(geometry_name);
                                                     if (geo != new_geo) {
                                                         logger::warn("geometry doesn't match source pointer, skipping");
@@ -1124,7 +1138,7 @@ namespace plugin {
                                                     }
                                                 } else {
                                                     logger::warn("reference had no 3D when installing overlays");
-                                                    return;                                   
+                                                    return;
                                                 }
                                                 if (geo && param_5 && param_4) {
                                                     if (geo->_refCount > 0 && param_5->_refCount > 0 && param_4->_refCount > 0) {
@@ -1320,6 +1334,14 @@ namespace plugin {
                     }
 
 #endif
+                    if (do_ragdoll_fix) {
+                        UpdateWorldDataTaskHook = (void (*)(uint64_t* TaskObj))(
+                            (uint64_t) skee64_info.lpBaseOfDll + 0x129680);
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) UpdateWorldDataTaskHook, &UpdateWorldDataTask_fn);
+                        DetourTransactionCommit();
+                    }
                     SetShaderPropertyHook = (void (*)(RE::NiAVObject* obj, void* variant, bool immediate, uint64_t arg4))(
                         (uint64_t) skee64_info.lpBaseOfDll + 0x127e70);
                     DetourTransactionBegin();
@@ -1490,6 +1512,13 @@ namespace plugin {
                         DetourAttach(&(PVOID&) SkeletonOnAttachHook, &SkeletonOnAttach_fn);
                         DetourTransactionCommit();
                         logger::info("SKEE64 Tags 1170 parallel node transform workaround applied");
+                    }
+                    if (do_ragdoll_fix) {
+                        UpdateWorldDataTaskHook = (void (*)(uint64_t* TaskObj))((uint64_t) skee64_info.lpBaseOfDll + 0x12e6c0);
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) UpdateWorldDataTaskHook, &UpdateWorldDataTask_fn);
+                        DetourTransactionCommit();
                     }
                     if (skip_load == true) {
                         uintptr_t skip_load_addr = ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0xab340);
