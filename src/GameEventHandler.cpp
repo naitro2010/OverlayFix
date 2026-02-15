@@ -240,16 +240,17 @@ namespace plugin {
                 }
             }
         }
-
-        if (CurrentObject->name.contains("[Ovl") || CurrentObject->name.contains("[ovl")) {
+        std::string obj_name_lower = CurrentObject->name.c_str();
+        std::transform(obj_name_lower.begin(), obj_name_lower.end(), obj_name_lower.begin(),
+                       [](unsigned char c) { return std::tolower(c); });
+        if (obj_name_lower.contains("[ovl")) {
             unsigned long index = 256;
-            size_t offset = std::string(CurrentObject->name.c_str()).find_last_of("Ovl", CurrentObject->name.size()) + 1;
-            if (offset >= CurrentObject->name.size()) {
-                offset = std::string(CurrentObject->name.c_str()).find_last_of("ovl", CurrentObject->name.size()) + 1;
+            size_t offset = std::string(obj_name_lower.c_str()).find_last_of("ovl", obj_name_lower.size()) + 1;
+            if (offset >= obj_name_lower.size()) {
+                offset = std::string(obj_name_lower.c_str()).find_last_of("ovl", obj_name_lower.size()) + 1;
             }
-            if (offset < CurrentObject->name.size() && ((CurrentObject->name.size() - offset) - 1) > 0) {
-                std::string overlay_index_str =
-                    std::string(CurrentObject->name.c_str()).substr(offset, ((CurrentObject->name.size() - offset) - 1));
+            if (offset < obj_name_lower.size() && ((obj_name_lower.size() - offset) - 1) > 0) {
+                std::string overlay_index_str = std::string(obj_name_lower.c_str()).substr(offset, ((obj_name_lower.size() - offset) - 1));
                 const char* index_cstr = overlay_index_str.c_str();
                 index = strtoul(index_cstr, NULL, 10);
                 if (do_reverse == true) {
@@ -275,16 +276,15 @@ namespace plugin {
             }
             return;
         }
-        if (CurrentObject->name.contains("[SOvl") || CurrentObject->name.contains("[sovl")) {
+        if (obj_name_lower.contains("[sovl")) {
             unsigned long index = 256;
-            size_t offset = std::string(CurrentObject->name.c_str()).find_last_of("Ovl", CurrentObject->name.size()) + 1;
-            if (offset >= CurrentObject->name.size()) {
-                offset = std::string(CurrentObject->name.c_str()).find_last_of("ovl", CurrentObject->name.size()) + 1;
+            size_t offset = std::string(obj_name_lower.c_str()).find_last_of("Ovl", obj_name_lower.size()) + 1;
+            if (offset >= obj_name_lower.size()) {
+                offset = std::string(obj_name_lower.c_str()).find_last_of("ovl", obj_name_lower.size()) + 1;
             }
 
-            if (offset < CurrentObject->name.size() && ((CurrentObject->name.size() - offset) - 1) > 0) {
-                std::string overlay_index_str =
-                    std::string(CurrentObject->name.c_str()).substr(offset, ((CurrentObject->name.size() - offset) - 1));
+            if (offset < obj_name_lower.size() && ((obj_name_lower.size() - offset) - 1) > 0) {
+                std::string overlay_index_str = std::string(obj_name_lower.c_str()).substr(offset, ((obj_name_lower.size() - offset) - 1));
                 const char* index_cstr = overlay_index_str.c_str();
                 index = strtoul(index_cstr, NULL, 10);
                 if (do_reverse == true) {
@@ -463,8 +463,10 @@ namespace plugin {
                 geo = geo;
                 auto found_geo = geo;
                 if (found_geo != nullptr) {
-                    if (obj->name.contains("[SOvl") || obj->name.contains("[Ovl") || obj->name.contains("[Sovl") ||
-                        obj->name.contains("[ovl") || obj->name.contains("[sovl")) {
+                    std::string obj_name_lower = obj->name.c_str();
+                    std::transform(obj_name_lower.begin(), obj_name_lower.end(), obj_name_lower.begin(),
+                                   [](unsigned char c) { return std::tolower(c); });
+                    if (obj_name_lower.contains("[ovl") || obj_name_lower.contains("[sovl")) {
                         CullingFix(found_geo);
                     }
                 }
