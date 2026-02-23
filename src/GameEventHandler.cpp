@@ -26,6 +26,7 @@ static bool do_reverse = false;
 static bool print_flags = true;
 static bool overlay_culling_fix = true;
 static bool IS_LOADING_GAME = false;
+static bool force_decal = true;
 RE::TESObjectREFR* GetUserDataFixed(RE::NiAVObject* obj) {
     auto* userData = REL::RelocateMember<RE::TESObjectREFR*>(obj, 0x0F8, 0x110);
     if (userData) {
@@ -172,6 +173,9 @@ namespace plugin {
             if (found_geo->GetGeometryRuntimeData().properties[1]) {
                 auto shader_prop = (RE::BSLightingShaderProperty*) found_geo->GetGeometryRuntimeData().properties[1].get();
                 if (shader_prop != nullptr) {
+                    if (force_decal == true) {
+                        shader_prop->flags.set(RE::BSShaderProperty::EShaderPropertyFlag::kDecal);
+                    }
                     if (!do_hide_unused_overlays) {
                         if (overlay_culling_fix == true) {
                             found_geo->GetFlags().set(RE::NiAVObject::Flag::kAlwaysDraw);
@@ -1188,7 +1192,7 @@ namespace plugin {
     static bool skip_load = false;
     static bool vr_esl = true;
     static bool do_samrim_name_fix = false;
-
+    
     auto LoadMainMenuOrig = (void (*)(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4)) 0x0;
     static void LoadMainMenuHook(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4) {
         {
@@ -1204,6 +1208,7 @@ namespace plugin {
         ini["OverlayFix"]["reverse"] = "default";
         ini["OverlayFix"]["skipload"] = "false";
         ini["OverlayFix"]["nocull"] = "default";
+        ini["OverlayFix"]["forcedecal"] = "true"; 
         ini["OverlayFix"]["hideunusedoverlays"] = "default";
         ini["OverlayFix"]["savedanger"] = "default";
         ini["OverlayFix"]["vresl"] = "default";
@@ -1220,6 +1225,7 @@ namespace plugin {
             ini["OverlayFix"]["reverse"] = "default";
             ini["OverlayFix"]["skipload"] = "false";
             ini["OverlayFix"]["nocull"] = "default";
+            ini["OverlayFix"]["forcedecal"] = "true"; 
             ini["OverlayFix"]["hideunusedoverlays"] = "default";
             ini["OverlayFix"]["savedanger"] = "default";
             ini["OverlayFix"]["vresl"] = "default";
@@ -1237,6 +1243,9 @@ namespace plugin {
             millisecond_delay = atoi(ini["OverlayFix"]["taskdelaymilliseconds"].c_str());
         }
         file.generate(ini);
+        if (ini["OverlayFix"]["forcedecal"]=="false") {
+            force_decal=false;
+        }
         if (ini["OverlayFix"]["hideunusedoverlays"] == "false") {
             do_hide_unused_overlays = false;
         }
