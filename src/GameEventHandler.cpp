@@ -1017,7 +1017,7 @@ namespace plugin {
                                                    }
                                                } else {
                                                    auto newrefr = RE::TESObjectREFR::LookupByID<RE::TESObjectREFR>(refrid);
-                                                   if (arg2 && ((RE::TESObjectREFR*) newrefr)->As<RE::TESObjectREFR>()) {
+                                                   if (arg2 && newrefr && ((RE::TESObjectREFR*) newrefr)->As<RE::TESObjectREFR>()) {
                                                        if (!newrefr->IsDeleted()) {
                                                            logger::error("Update Morph Reference changed");
                                                            UpdateMorphsHook(arg1, newrefr, arg3);
