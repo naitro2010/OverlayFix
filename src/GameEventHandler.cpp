@@ -27,6 +27,7 @@ static bool print_flags = true;
 static bool overlay_culling_fix = true;
 static bool IS_LOADING_GAME = false;
 static bool force_decal = true;
+static bool mu_normal_setskin_workaround = false;
 RE::TESObjectREFR* GetUserDataFixed(RE::NiAVObject* obj) {
     auto* userData = REL::RelocateMember<RE::TESObjectREFR*>(obj, 0x0F8, 0x110);
     if (userData) {
@@ -39,10 +40,27 @@ RE::TESObjectREFR* GetUserDataFixed(RE::NiAVObject* obj) {
 }
 auto task_pool_ptr = (bool (*)(void)) nullptr;
 std::recursive_mutex morph_task_mutex;
+std::recursive_mutex qupdatenormalmap_lock;
 std::recursive_mutex loading_game_mutex;
 std::recursive_mutex custom_main_task_pool_lock;
 std::queue<std::function<void()>> custom_main_task_pool;
 auto original_process_task = (void (*)(void* main, void* arg2, void* arg3, void* arg4)) nullptr;
+auto qupdatenormalmap = (void (*)(void* arg1, RE::Actor* actor, int armor_slot_bit)) nullptr;
+auto original_setskin = (void (*)(RE::TESActorBase* actorbase, RE::TESObjectARMO* skin)) nullptr;
+static void setskin_hook (RE::TESActorBase* actorbase, RE::TESObjectARMO* skin) {
+    if (original_setskin && qupdatenormalmap) {
+        original_setskin(actorbase, skin);
+        std::lock_guard l(qupdatenormalmap_lock);
+        auto actor_forms = RE::TESDataHandler::GetSingleton()->GetFormArray<RE::Actor>();
+        for (auto* actor:actor_forms) {
+            if (actor && actor->GetActorBase()==actorbase) {
+                qupdatenormalmap(nullptr, actor, 0xffffffff);
+            }
+        }
+        
+    }
+}
+
 static void ProcessMainTasks(void* main, void* arg2, void* arg3, void* arg4) {
     original_process_task(main, arg2, arg3, arg4);
     while (true) {
@@ -379,11 +397,18 @@ namespace plugin {
                                                 }
                                             }
                                         }
+                                        if (qupdatenormalmap) {
+                                            if (auto actor = reference->As<RE::Actor>()) {
+                                                std::lock_guard l(qupdatenormalmap_lock);
+                                                qupdatenormalmap(nullptr, actor, 0xFFFFFFFF);
+                                            }
+                                        }
                                     } else {
                                         logger::error("not reversing overlays because 3D is not loaded or ref count too low");
                                     }
                                 }
                             }
+                            
                         });
                     }
 
@@ -858,7 +883,7 @@ namespace plugin {
                                         }
                                     }
                                     //actor->Update3DModel();
-                                    // 
+                                    //
                                     //actor->Update3DPosition(true);
                                 }
                             }
@@ -877,7 +902,6 @@ namespace plugin {
     }
     static auto UpdateWorldDataTaskHook = (void (*)(uint64_t* TaskObj)) nullptr;
     static void UpdateWorldDataTask_fn(uint64_t* TaskObj) {
-    
         auto obj = (RE::NiAVObject*) (TaskObj[1]);
         RE::NiUpdateData data;
         data.time = 0;
@@ -885,7 +909,6 @@ namespace plugin {
         data.flags.set(RE::NiUpdateData::Flag::kDisableCollision);
         obj->UpdateWorldData(&data);
         UpdateWorldDataTaskHook(TaskObj);
-        
     }
 #ifdef PARALLEL_MORPH_WORKAROUND
 
@@ -1192,7 +1215,7 @@ namespace plugin {
     static bool skip_load = false;
     static bool vr_esl = true;
     static bool do_samrim_name_fix = false;
-    
+
     auto LoadMainMenuOrig = (void (*)(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4)) 0x0;
     static void LoadMainMenuHook(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4) {
         {
@@ -1208,7 +1231,7 @@ namespace plugin {
         ini["OverlayFix"]["reverse"] = "default";
         ini["OverlayFix"]["skipload"] = "false";
         ini["OverlayFix"]["nocull"] = "default";
-        ini["OverlayFix"]["forcedecal"] = "true"; 
+        ini["OverlayFix"]["forcedecal"] = "true";
         ini["OverlayFix"]["hideunusedoverlays"] = "default";
         ini["OverlayFix"]["savedanger"] = "default";
         ini["OverlayFix"]["vresl"] = "default";
@@ -1218,6 +1241,7 @@ namespace plugin {
         ini["OverlayFix"]["taskdelaycount"] = "60";
         ini["OverlayFix"]["taskdelaymilliseconds"] = "4";
         ini["OverlayFix"]["ragdollfix"] = "false";
+        ini["OverlayFix"]["mu_normal_setskin_workaround"] = "false";
         spdlog::set_level(spdlog::level::info);
         file.read(ini);
         if (!ini["OverlayFix"].has("version")) {
@@ -1225,7 +1249,7 @@ namespace plugin {
             ini["OverlayFix"]["reverse"] = "default";
             ini["OverlayFix"]["skipload"] = "false";
             ini["OverlayFix"]["nocull"] = "default";
-            ini["OverlayFix"]["forcedecal"] = "true"; 
+            ini["OverlayFix"]["forcedecal"] = "true";
             ini["OverlayFix"]["hideunusedoverlays"] = "default";
             ini["OverlayFix"]["savedanger"] = "default";
             ini["OverlayFix"]["vresl"] = "default";
@@ -1235,6 +1259,7 @@ namespace plugin {
             ini["OverlayFix"]["taskdelaycount"] = "60";
             ini["OverlayFix"]["taskdelaymilliseconds"] = "4";
             ini["OverlayFix"]["ragdollfix"] = "false";
+            ini["OverlayFix"]["mu_normal_setskin_workaround"] = "false";
         }
         if (atoi(ini["OverlayFix"]["taskdelaycount"].c_str()) > 0) {
             delay_count = atoi(ini["OverlayFix"]["taskdelaycount"].c_str());
@@ -1243,8 +1268,11 @@ namespace plugin {
             millisecond_delay = atoi(ini["OverlayFix"]["taskdelaymilliseconds"].c_str());
         }
         file.generate(ini);
-        if (ini["OverlayFix"]["forcedecal"]=="false") {
-            force_decal=false;
+        if (ini["OverlayFix"]["forcedecal"] == "false") {
+            force_decal = false;
+        }
+        if (ini["OverlayFix"]["mu_normal_setskin_workaround"] == "true") {
+            mu_normal_setskin_workaround = true;
         }
         if (ini["OverlayFix"]["hideunusedoverlays"] == "false") {
             do_hide_unused_overlays = false;
@@ -1346,8 +1374,7 @@ namespace plugin {
 
 #endif
                     if (do_ragdoll_fix) {
-                        UpdateWorldDataTaskHook = (void (*)(uint64_t* TaskObj))(
-                            (uint64_t) skee64_info.lpBaseOfDll + 0x129680);
+                        UpdateWorldDataTaskHook = (void (*)(uint64_t* TaskObj))((uint64_t) skee64_info.lpBaseOfDll + 0x129680);
                         DetourTransactionBegin();
                         DetourUpdateThread(GetCurrentThread());
                         DetourAttach(&(PVOID&) UpdateWorldDataTaskHook, &UpdateWorldDataTask_fn);
@@ -2270,6 +2297,54 @@ namespace plugin {
             DetourUpdateThread(GetCurrentThread());
             DetourAttach(&(PVOID&) original_process_task, &ProcessMainTasks);
             DetourTransactionCommit();
+        }
+        if (mu_normal_setskin_workaround) {
+            {
+                if (auto VM = RE::BSScript::Internal::VirtualMachine::GetSingleton()) {
+                    RE::BSTSmartPointer<RE::BSScript::ObjectTypeInfo> classInfoPtr = nullptr;
+                    VM->GetScriptObjectType1("MuDynamicNormalMap", classInfoPtr);
+                    if (classInfoPtr) {
+                        auto func_count = classInfoPtr->GetNumGlobalFuncs();
+                        auto func_iter = classInfoPtr->GetGlobalFuncIter();
+                        for (uint64_t i = 0; i < func_count; i = i + 1) {
+                            if (auto func_ptr = (func_iter + i)) {
+                                if (auto func = func_ptr->func) {
+                                    if (func->GetName() == RE::BSFixedString("QUpdateNormalmap") && func->GetIsNative()) {
+                                        qupdatenormalmap = (void (*)(void* arg1, RE::Actor* actor, int armor_slot_bit)) *
+                                                           (uint64_t*) ((uint64_t) func.get() + 0x50);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            {
+                if (auto VM = RE::BSScript::Internal::VirtualMachine::GetSingleton()) {
+                    RE::BSTSmartPointer<RE::BSScript::ObjectTypeInfo> classInfoPtr = nullptr;
+                    VM->GetScriptObjectType1("ActorBase", classInfoPtr);
+                    if (classInfoPtr) {
+                        auto func_count = classInfoPtr->GetNumMemberFuncs();
+                        auto func_iter = classInfoPtr->GetMemberFuncIter();
+                        for (uint64_t i = 0; i < func_count; i = i + 1) {
+                            if (auto func_ptr = (func_iter + i)) {
+                                if (auto func = func_ptr->func) {
+                                    if (func->GetName() == RE::BSFixedString("SetSkin") && func->GetIsNative()) {
+                                        original_setskin = (void (*)(RE::TESActorBase* actorbase, RE::TESObjectARMO* skin)) *
+                                                           (uint64_t*) ((uint64_t) func.get() + 0x50);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (original_setskin) {
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) original_setskin, &setskin_hook);
+                        DetourTransactionCommit();
+                    }
+                }
+            }
         }
         logger::info("onPostPostLoad()");
     }
