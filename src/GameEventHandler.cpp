@@ -47,17 +47,17 @@ std::queue<std::function<void()>> custom_main_task_pool;
 auto original_process_task = (void (*)(void* main, void* arg2, void* arg3, void* arg4)) nullptr;
 auto qupdatenormalmap = (void (*)(void* arg1, RE::Actor* actor, int armor_slot_bit)) nullptr;
 auto original_setskin = (void (*)(RE::TESActorBase* actorbase, RE::TESObjectARMO* skin)) nullptr;
-static void setskin_hook (RE::TESActorBase* actorbase, RE::TESObjectARMO* skin) {
+static void setskin_hook(RE::TESActorBase* actorbase, RE::TESObjectARMO* skin) {
     if (original_setskin && qupdatenormalmap) {
         original_setskin(actorbase, skin);
         std::lock_guard l(qupdatenormalmap_lock);
         auto actor_forms = RE::TESDataHandler::GetSingleton()->GetFormArray<RE::Actor>();
-        for (auto* actor:actor_forms) {
-            if (actor && actor->GetActorBase()==actorbase) {
+        for (auto* actor: actor_forms) {
+            if (actor && actor->GetActorBase() == actorbase) {
                 qupdatenormalmap(nullptr, actor, 0xffffffff);
+                logger::info("calling QUpdateNormalMap");
             }
         }
-        
     }
 }
 
@@ -401,6 +401,7 @@ namespace plugin {
                                             if (auto actor = reference->As<RE::Actor>()) {
                                                 std::lock_guard l(qupdatenormalmap_lock);
                                                 qupdatenormalmap(nullptr, actor, 0xFFFFFFFF);
+                                                logger::info("calling QUpdateNormalMap");
                                             }
                                         }
                                     } else {
@@ -408,7 +409,6 @@ namespace plugin {
                                     }
                                 }
                             }
-                            
                         });
                     }
 
@@ -2298,11 +2298,21 @@ namespace plugin {
             DetourAttach(&(PVOID&) original_process_task, &ProcessMainTasks);
             DetourTransactionCommit();
         }
+        
+        logger::info("onPostPostLoad()");
+    }
+
+    void GameEventHandler::onInputLoaded() {
+        logger::info("onInputLoaded()");
+    }
+
+    void GameEventHandler::onDataLoaded() {
         if (mu_normal_setskin_workaround) {
             {
                 if (auto VM = RE::BSScript::Internal::VirtualMachine::GetSingleton()) {
                     RE::BSTSmartPointer<RE::BSScript::ObjectTypeInfo> classInfoPtr = nullptr;
-                    VM->GetScriptObjectType1("MuDynamicNormalMap", classInfoPtr);
+                    VM->ReloadType("MuDynamicNormalMap");
+                    VM->GetScriptObjectType1(RE::BSFixedString("MuDynamicNormalMap"), classInfoPtr);
                     if (classInfoPtr) {
                         auto func_count = classInfoPtr->GetNumGlobalFuncs();
                         auto func_iter = classInfoPtr->GetGlobalFuncIter();
@@ -2312,6 +2322,7 @@ namespace plugin {
                                     if (func->GetName() == RE::BSFixedString("QUpdateNormalmap") && func->GetIsNative()) {
                                         qupdatenormalmap = (void (*)(void* arg1, RE::Actor* actor, int armor_slot_bit)) *
                                                            (uint64_t*) ((uint64_t) func.get() + 0x50);
+                                        logger::info("found QUpdateNormalMap");
                                     }
                                 }
                             }
@@ -2332,6 +2343,7 @@ namespace plugin {
                                     if (func->GetName() == RE::BSFixedString("SetSkin") && func->GetIsNative()) {
                                         original_setskin = (void (*)(RE::TESActorBase* actorbase, RE::TESObjectARMO* skin)) *
                                                            (uint64_t*) ((uint64_t) func.get() + 0x50);
+                                        logger::info("found SetSkin");
                                     }
                                 }
                             }
@@ -2346,14 +2358,6 @@ namespace plugin {
                 }
             }
         }
-        logger::info("onPostPostLoad()");
-    }
-
-    void GameEventHandler::onInputLoaded() {
-        logger::info("onInputLoaded()");
-    }
-
-    void GameEventHandler::onDataLoaded() {
         logger::info("onDataLoaded()");
     }
 
