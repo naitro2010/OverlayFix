@@ -43,6 +43,7 @@ std::recursive_mutex morph_task_mutex;
 std::recursive_mutex qupdatenormalmap_lock;
 std::recursive_mutex loading_game_mutex;
 std::recursive_mutex custom_main_task_pool_lock;
+std::uint64_t qupdatenormalmap_recursion=0;
 std::queue<std::function<void()>> custom_main_task_pool;
 auto original_process_task = (void (*)(void* main, void* arg2, void* arg3, void* arg4)) nullptr;
 auto qupdatenormalmap = (void (*)(void* arg1, RE::Actor* actor, int armor_slot_bit)) nullptr;
@@ -50,12 +51,18 @@ auto original_setskin = (void (*)(RE::TESActorBase* actorbase, RE::TESObjectARMO
 static void setskin_hook(RE::TESActorBase* actorbase, RE::TESObjectARMO* skin) {
     if (original_setskin && qupdatenormalmap) {
         original_setskin(actorbase, skin);
-        std::lock_guard l(qupdatenormalmap_lock);
+        
         auto actor_forms = RE::TESDataHandler::GetSingleton()->GetFormArray<RE::Actor>();
         for (auto* actor: actor_forms) {
             if (actor && actor->GetActorBase() == actorbase) {
-                qupdatenormalmap(nullptr, actor, 0xffffffff);
-                logger::info("calling QUpdateNormalMap");
+                std::lock_guard l(qupdatenormalmap_lock);
+                if (qupdatenormalmap_recursion == 0) {
+                    logger::info("calling QUpdateNormalMap");
+                    qupdatenormalmap_recursion = 1;
+                    qupdatenormalmap(nullptr, actor, 0xffffffff);
+
+                    qupdatenormalmap_recursion = 0;
+                }
             }
         }
     }
@@ -400,8 +407,14 @@ namespace plugin {
                                         if (qupdatenormalmap) {
                                             if (auto actor = reference->As<RE::Actor>()) {
                                                 std::lock_guard l(qupdatenormalmap_lock);
-                                                qupdatenormalmap(nullptr, actor, 0xFFFFFFFF);
-                                                logger::info("calling QUpdateNormalMap");
+                                                if (qupdatenormalmap_recursion == 0) {
+                                                    logger::info("calling QUpdateNormalMap");
+                                                    qupdatenormalmap_recursion = 1;
+                                                    qupdatenormalmap(nullptr, actor, 0xffffffff);
+
+                                                    qupdatenormalmap_recursion = 0;
+                                                }
+                                                
                                             }
                                         }
                                     } else {
@@ -2320,7 +2333,7 @@ namespace plugin {
                                 if (auto func = func_ptr->func) {
                                     if (func->GetName() == RE::BSFixedString("QUpdateNormalmap") && func->GetIsNative()) {
                                         qupdatenormalmap = (void (*)(void* arg1, RE::Actor* actor, int armor_slot_bit)) *
-                                                           (uint64_t*) ((uint64_t) func.get() + 0x50);
+                                                           (uint64_t*) (((uint64_t) func.get()) + 0x50);
                                         logger::info("found QUpdateNormalMap");
                                     }
                                 }
@@ -2341,7 +2354,7 @@ namespace plugin {
                                 if (auto func = func_ptr->func) {
                                     if (func->GetName() == RE::BSFixedString("SetSkin") && func->GetIsNative()) {
                                         original_setskin = (void (*)(RE::TESActorBase* actorbase, RE::TESObjectARMO* skin)) *
-                                                           (uint64_t*) ((uint64_t) func.get() + 0x50);
+                                                           (uint64_t*) (((uint64_t) func.get()) + 0x50);
                                         logger::info("found SetSkin");
                                     }
                                 }
