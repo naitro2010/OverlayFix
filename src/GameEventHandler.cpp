@@ -2333,7 +2333,7 @@ namespace plugin {
                                 if (auto func = func_ptr->func) {
                                     if (func->GetName() == RE::BSFixedString("QUpdateNormalmap") && func->GetIsNative()) {
                                         qupdatenormalmap = (void (*)(void* arg1, RE::Actor* actor, int armor_slot_bit)) 
-                                                           ( ((*(uint64_t*) func.get()) + 0x58));
+                                                           ( *(uint64_t*)(((uint64_t) func.get()) + 0x58));
                                         logger::info("found QUpdateNormalMap");
                                     }
                                 }
@@ -2354,7 +2354,7 @@ namespace plugin {
                                 if (auto func = func_ptr->func) {
                                     if (func->GetName() == RE::BSFixedString("SetSkin") && func->GetIsNative()) {
                                         original_setskin = (void (*)(RE::TESActorBase* actorbase, RE::TESObjectARMO* skin))(
-                                            ((*(uint64_t*) func.get()) + 0x58));
+                                            ( *(uint64_t*)(((uint64_t) func.get()) + 0x58)));
                                         logger::info("found SetSkin");
                                     }
                                 }
