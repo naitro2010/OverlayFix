@@ -2311,7 +2311,6 @@ namespace plugin {
             {
                 if (auto VM = RE::BSScript::Internal::VirtualMachine::GetSingleton()) {
                     RE::BSTSmartPointer<RE::BSScript::ObjectTypeInfo> classInfoPtr = nullptr;
-                    VM->ReloadType("MuDynamicNormalMap");
                     VM->GetScriptObjectType1(RE::BSFixedString("MuDynamicNormalMap"), classInfoPtr);
                     if (classInfoPtr) {
                         auto func_count = classInfoPtr->GetNumGlobalFuncs();
