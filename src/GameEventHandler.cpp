@@ -43,7 +43,7 @@ std::recursive_mutex morph_task_mutex;
 std::recursive_mutex qupdatenormalmap_lock;
 std::recursive_mutex loading_game_mutex;
 std::recursive_mutex custom_main_task_pool_lock;
-std::uint64_t qupdatenormalmap_recursion=0;
+std::uint64_t qupdatenormalmap_recursion = 0;
 std::queue<std::function<void()>> custom_main_task_pool;
 auto original_process_task = (void (*)(void* main, void* arg2, void* arg3, void* arg4)) nullptr;
 auto qupdatenormalmap = (void (*)(void* arg1, RE::Actor* actor, int armor_slot_bit)) nullptr;
@@ -51,7 +51,7 @@ auto original_setskin = (void (*)(RE::TESActorBase* actorbase, RE::TESObjectARMO
 static void setskin_hook(RE::TESActorBase* actorbase, RE::TESObjectARMO* skin) {
     if (original_setskin && qupdatenormalmap) {
         original_setskin(actorbase, skin);
-        
+
         auto actor_forms = RE::TESDataHandler::GetSingleton()->GetFormArray<RE::Actor>();
         for (auto* actor: actor_forms) {
             if (actor && actor->GetActorBase() == actorbase) {
@@ -414,7 +414,6 @@ namespace plugin {
 
                                                     qupdatenormalmap_recursion = 0;
                                                 }
-                                                
                                             }
                                         }
                                     } else {
@@ -764,7 +763,6 @@ namespace plugin {
                         }
                     }
                     if (!is_main_thread()) {
-                        ((RE::TESObjectREFR*) arg2)->IncRefCount();
                         if (auto task_int = SKSE::GetTaskInterface()) {
                             AddMainTask([=] {
                                 if (arg2 && arg2 == RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid)) {
@@ -823,10 +821,8 @@ namespace plugin {
                                     } else {
                                         logger::warn("SkeletonOnAttach 3D not loaded");
                                     }
-                                    ((RE::TESObjectREFR*) arg2)->DecRefCount();
                                 } else if (arg2) {
                                     logger::error("arg2 form doesn't match");
-                                    ((RE::TESObjectREFR*) arg2)->DecRefCount();
                                 }
                             });
                         }
@@ -2311,7 +2307,7 @@ namespace plugin {
             DetourAttach(&(PVOID&) original_process_task, &ProcessMainTasks);
             DetourTransactionCommit();
         }
-        
+
         logger::info("onPostPostLoad()");
     }
 
@@ -2331,7 +2327,6 @@ namespace plugin {
                         for (uint64_t i = 0; i < func_count; i = i + 1) {
                             if (auto func_ptr = (func_iter + i)) {
                                 if (auto func = func_ptr->func) {
-                                    
                                     if (func->GetName() == RE::BSFixedString("QUpdateNormalmap") && func->GetIsNative()) {
                                         qupdatenormalmap = (void (*)(void* arg1, RE::Actor* actor, int armor_slot_bit))(
                                             (*(uint64_t*) (((uint64_t) func.get()) + 0x58)));
@@ -2355,7 +2350,7 @@ namespace plugin {
                                 if (auto func = func_ptr->func) {
                                     if (func->GetName() == RE::BSFixedString("SetSkin") && func->GetIsNative()) {
                                         original_setskin = (void (*)(RE::TESActorBase* actorbase, RE::TESObjectARMO* skin))(
-                                            ( *(uint64_t*)(((uint64_t) func.get()) + 0x50)));
+                                            (*(uint64_t*) (((uint64_t) func.get()) + 0x50)));
                                         logger::info("found SetSkin");
                                     }
                                 }
