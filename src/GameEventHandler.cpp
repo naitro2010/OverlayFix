@@ -26,7 +26,6 @@ static bool do_reverse = false;
 static bool print_flags = true;
 static bool overlay_culling_fix = true;
 static bool IS_LOADING_GAME = false;
-static bool force_decal = true;
 static bool mu_normal_setskin_workaround = false;
 RE::TESObjectREFR* GetUserDataFixed(RE::NiAVObject* obj) {
     auto* userData = REL::RelocateMember<RE::TESObjectREFR*>(obj, 0x0F8, 0x110);
@@ -197,9 +196,10 @@ namespace plugin {
         if (found_geo != nullptr) {
             if (found_geo->GetGeometryRuntimeData().properties[1]) {
                 auto shader_prop = (RE::BSLightingShaderProperty*) found_geo->GetGeometryRuntimeData().properties[1].get();
+
                 if (shader_prop != nullptr) {
-                    if (force_decal == true) {
-                        shader_prop->flags.set(RE::BSShaderProperty::EShaderPropertyFlag::kDecal);
+                    if (!found_geo->GetGeometryRuntimeData().properties[1]->GetRTTI()->IsKindOf((RE::NiRTTI*)RE::BSLightingShaderProperty::Ni_RTTI.address())) {
+                            return;
                     }
                     if (!do_hide_unused_overlays) {
                         if (overlay_culling_fix == true) {
@@ -1240,7 +1240,6 @@ namespace plugin {
         ini["OverlayFix"]["reverse"] = "default";
         ini["OverlayFix"]["skipload"] = "false";
         ini["OverlayFix"]["nocull"] = "default";
-        ini["OverlayFix"]["forcedecal"] = "true";
         ini["OverlayFix"]["hideunusedoverlays"] = "default";
         ini["OverlayFix"]["savedanger"] = "default";
         ini["OverlayFix"]["vresl"] = "default";
@@ -1258,7 +1257,6 @@ namespace plugin {
             ini["OverlayFix"]["reverse"] = "default";
             ini["OverlayFix"]["skipload"] = "false";
             ini["OverlayFix"]["nocull"] = "default";
-            ini["OverlayFix"]["forcedecal"] = "true";
             ini["OverlayFix"]["hideunusedoverlays"] = "default";
             ini["OverlayFix"]["savedanger"] = "default";
             ini["OverlayFix"]["vresl"] = "default";
@@ -1277,9 +1275,6 @@ namespace plugin {
             millisecond_delay = atoi(ini["OverlayFix"]["taskdelaymilliseconds"].c_str());
         }
         file.generate(ini);
-        if (ini["OverlayFix"]["forcedecal"] == "false") {
-            force_decal = false;
-        }
         if (ini["OverlayFix"]["mu_normal_setskin_workaround"] == "true") {
             mu_normal_setskin_workaround = true;
         }
