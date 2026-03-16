@@ -198,8 +198,9 @@ namespace plugin {
                 auto shader_prop = (RE::BSLightingShaderProperty*) found_geo->GetGeometryRuntimeData().properties[1].get();
 
                 if (shader_prop != nullptr) {
-                    if (!found_geo->GetGeometryRuntimeData().properties[1]->GetRTTI()->IsKindOf((RE::NiRTTI*)RE::BSLightingShaderProperty::Ni_RTTI.address())) {
-                            return;
+                    if (!found_geo->GetGeometryRuntimeData().properties[1]->GetRTTI()->IsKindOf(
+                            (RE::NiRTTI*) RE::BSLightingShaderProperty::Ni_RTTI.address())) {
+                        return;
                     }
                     if (!do_hide_unused_overlays) {
                         if (overlay_culling_fix == true) {
@@ -854,18 +855,23 @@ namespace plugin {
             }
         }
     }
-    /*
+    
     static void SetNodeTransformsHook_fn(void* arg1, uint32_t formID, uint64_t immediate, bool reset) {
         if (PARALLEL_TRANSFORM_FIX) {
             if (auto task_int = SKSE::GetTaskInterface()) {
-                task_int->AddTask(
-                    [arg1 = arg1, arg2 = formID, arg3 = immediate, arg4 = reset] { SetNodeTransformsHook(arg1, arg2, arg3, arg4); });
+                immediate = true;
+                if (!is_main_thread()) {
+                    AddMainTask(
+                        [arg1 = arg1, arg2 = formID, arg3 = immediate, arg4 = reset] { SetNodeTransformsHook(arg1, arg2, arg3, arg4); });
+                } else {
+                    SetNodeTransformsHook(arg1, formID, immediate, reset);
+                }
             }
         } else {
             SetNodeTransformsHook(arg1, formID, immediate, reset);
         }
     }
-    */
+    
     static void UpdateNodeTransformsHook_fn(void* arg1, RE::TESObjectREFR* ref, bool firstperson, bool gender,
                                             const SKEEString* node_string) {
         if (PARALLEL_TRANSFORM_FIX && !is_main_thread()) {
@@ -1399,14 +1405,14 @@ namespace plugin {
                         DetourUpdateThread(GetCurrentThread());
                         DetourAttach(&(PVOID&) UpdateNodeTransformsHook, &UpdateNodeTransformsHook_fn);
                         DetourTransactionCommit();
-                        /*
+                        
                         SetNodeTransformsHook = (void (*)(void* arg1, uint32_t formID, uint64_t immediate, bool reset))(
                             (uint64_t) skee64_info.lpBaseOfDll + 0xc72c0);
                         DetourTransactionBegin();
                         DetourUpdateThread(GetCurrentThread());
                         DetourAttach(&(PVOID&) SetNodeTransformsHook, &SetNodeTransformsHook_fn);
                         DetourTransactionCommit();
-                        */
+                        
                         SkeletonOnAttachHook = (void (*)(void* arg1, void* arg2, void* arg3, void* arg4, void* arg5, bool arg6, void* arg7,
                                                          void* arg8))((uint64_t) skee64_info.lpBaseOfDll + 0x133330);
                         DetourTransactionBegin();
@@ -1539,14 +1545,14 @@ namespace plugin {
                         DetourUpdateThread(GetCurrentThread());
                         DetourAttach(&(PVOID&) UpdateNodeTransformsHook, &UpdateNodeTransformsHook_fn);
                         DetourTransactionCommit();
-                        /*
+                        
                         SetNodeTransformsHook = (void (*)(void* arg1, uint32_t formID, uint64_t immediate, bool reset))(
                             (uint64_t) skee64_info.lpBaseOfDll + 0xcad50);
                         DetourTransactionBegin();
                         DetourUpdateThread(GetCurrentThread());
                         DetourAttach(&(PVOID&) SetNodeTransformsHook, &SetNodeTransformsHook_fn);
                         DetourTransactionCommit();
-                        */
+                        
                         SkeletonOnAttachHook = (void (*)(void* arg1, void* arg2, void* arg3, void* arg4, void* arg5, bool arg6, void* arg7,
                                                          void* arg8))((uint64_t) skee64_info.lpBaseOfDll + 0x1382a0);
                         DetourTransactionBegin();
@@ -1725,6 +1731,12 @@ namespace plugin {
                             DetourUpdateThread(GetCurrentThread());
                             DetourAttach(&(PVOID&) UpdateNodeTransformsHook, &UpdateNodeTransformsHook_fn);
                             DetourTransactionCommit();
+                            SetNodeTransformsHook = (void (*)(void* arg1, uint32_t formID, uint64_t immediate, bool reset))(
+                                (uint64_t) skee64_info.lpBaseOfDll + 0x78c90);
+                            DetourTransactionBegin();
+                            DetourUpdateThread(GetCurrentThread());
+                            DetourAttach(&(PVOID&) SetNodeTransformsHook, &SetNodeTransformsHook_fn);
+                            DetourTransactionCommit();
                             SkeletonOnAttachHook = (void (*)(void* arg1, void* arg2, void* arg3, void* arg4, void* arg5, bool arg6,
                                                              void* arg7, void* arg8))((uint64_t) skee64_info.lpBaseOfDll + 0xdcae0);
                             DetourTransactionBegin();
@@ -1781,6 +1793,12 @@ namespace plugin {
                         DetourTransactionBegin();
                         DetourUpdateThread(GetCurrentThread());
                         DetourAttach(&(PVOID&) UpdateNodeTransformsHook, &UpdateNodeTransformsHook_fn);
+                        DetourTransactionCommit();
+                        SetNodeTransformsHook = (void (*)(void* arg1, uint32_t formID, uint64_t immediate, bool reset))(
+                            (uint64_t) skee64_info.lpBaseOfDll + 0x83430);
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) SetNodeTransformsHook, &SetNodeTransformsHook_fn);
                         DetourTransactionCommit();
                         SkeletonOnAttachHook = (void (*)(void* arg1, void* arg2, void* arg3, void* arg4, void* arg5, bool arg6, void* arg7,
                                                          void* arg8))((uint64_t) skee64_info.lpBaseOfDll + 0xe8ae0);
@@ -1912,14 +1930,14 @@ namespace plugin {
                         DetourUpdateThread(GetCurrentThread());
                         DetourAttach(&(PVOID&) UpdateNodeTransformsHook, &UpdateNodeTransformsHook_fn);
                         DetourTransactionCommit();
-                        /*
+                        
                         SetNodeTransformsHook = (void (*)(void* arg1, uint32_t formID, uint64_t immediate, bool reset))(
                             (uint64_t) skee64_info.lpBaseOfDll + 0xc72c0);
                         DetourTransactionBegin();
                         DetourUpdateThread(GetCurrentThread());
                         DetourAttach(&(PVOID&) SetNodeTransformsHook, &SetNodeTransformsHook_fn);
                         DetourTransactionCommit();
-                        */
+                        
                         SkeletonOnAttachHook = (void (*)(void* arg1, void* arg2, void* arg3, void* arg4, void* arg5, bool arg6, void* arg7,
                                                          void* arg8))((uint64_t) skee64_info.lpBaseOfDll + 0xfcb40);
                         DetourTransactionBegin();
@@ -2051,6 +2069,14 @@ namespace plugin {
                         DetourUpdateThread(GetCurrentThread());
                         DetourAttach(&(PVOID&) UpdateNodeTransformsHook, &UpdateNodeTransformsHook_fn);
                         DetourTransactionCommit();
+
+                        SetNodeTransformsHook = (void (*)(void* arg1, uint32_t formID, uint64_t immediate, bool reset))(
+                            (uint64_t) skee64_info.lpBaseOfDll + 0x75e90);
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) SetNodeTransformsHook, &SetNodeTransformsHook_fn);
+                        DetourTransactionCommit();
+
                         SkeletonOnAttachHook = (void (*)(void* arg1, void* arg2, void* arg3, void* arg4, void* arg5, bool arg6, void* arg7,
                                                          void* arg8))((uint64_t) skee64_info.lpBaseOfDll + 0xd9040);
                         DetourTransactionBegin();
@@ -2106,6 +2132,15 @@ namespace plugin {
                         DetourUpdateThread(GetCurrentThread());
                         DetourAttach(&(PVOID&) UpdateNodeTransformsHook, &UpdateNodeTransformsHook_fn);
                         DetourTransactionCommit();
+
+
+                        SetNodeTransformsHook = (void (*)(void* arg1, uint32_t formID, uint64_t immediate, bool reset))(
+                            (uint64_t) skee64_info.lpBaseOfDll + 0x7d7f0);
+                        DetourTransactionBegin();
+                        DetourUpdateThread(GetCurrentThread());
+                        DetourAttach(&(PVOID&) SetNodeTransformsHook, &SetNodeTransformsHook_fn);
+                        DetourTransactionCommit();
+
                         SkeletonOnAttachHook = (void (*)(void* arg1, void* arg2, void* arg3, void* arg4, void* arg5, bool arg6, void* arg7,
                                                          void* arg8))((uint64_t) skee64_info.lpBaseOfDll + 0xe15b0);
                         DetourTransactionBegin();
