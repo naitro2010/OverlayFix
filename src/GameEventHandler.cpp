@@ -42,6 +42,7 @@ std::recursive_mutex morph_task_mutex;
 std::recursive_mutex qupdatenormalmap_lock;
 std::recursive_mutex loading_game_mutex;
 std::recursive_mutex custom_main_task_pool_lock;
+static void* nitransforminterface=nullptr;
 std::uint64_t qupdatenormalmap_recursion = 0;
 std::queue<std::function<void()>> custom_main_task_pool;
 auto original_process_task = (void (*)(void* main, void* arg2, void* arg3, void* arg4)) nullptr;
@@ -862,8 +863,25 @@ namespace plugin {
                 immediate = true;
                 if (!is_main_thread()) {
                     AddMainTask(
-                        [arg1 = arg1, arg2 = formID, arg3 = immediate, arg4 = reset] { SetNodeTransformsHook(arg1, arg2, arg3, arg4); });
+                        [arg1 = arg1, arg2 = formID, arg3 = immediate, arg4 = reset] { 
+                            if (auto arg2_form = RE::TESForm::LookupByID(arg2)) {
+                                if (auto actor = arg2_form->As<RE::Actor>()) {
+                                    if (!actor->Is3DLoaded()) {
+                                        actor->Load3D(true);
+                                    }
+                                }
+                            }
+                            SetNodeTransformsHook(arg1, arg2, arg3, arg4); 
+                        
+                        });
                 } else {
+                    if (auto arg2_form = RE::TESForm::LookupByID(formID)) {
+                        if (auto actor = arg2_form->As<RE::Actor>()) {
+                            if (!actor->Is3DLoaded()) {
+                                actor->Load3D(true);
+                            }
+                        }
+                    }
                     SetNodeTransformsHook(arg1, formID, immediate, reset);
                 }
             }
@@ -1398,7 +1416,7 @@ namespace plugin {
                     DetourTransactionCommit();
                     if (PARALLEL_TRANSFORM_FIX) {
                         logger::info("SKEE64 1170 parallel node transform workaround applying");
-
+                        nitransforminterface =(void*) (((uint64_t) skee64_info.lpBaseOfDll) + 0x230810);
                         UpdateNodeTransformsHook = (void (*)(void*, RE::TESObjectREFR*, bool, bool, const SKEEString* node_name))(
                             (uint64_t) skee64_info.lpBaseOfDll + 0xc68d0);
                         DetourTransactionBegin();
@@ -1725,6 +1743,7 @@ namespace plugin {
 #endif
                         if (PARALLEL_TRANSFORM_FIX) {
                             logger::info("SKEE64 1597 parallel transform workaround applying");
+                            nitransforminterface = (void*) (((uint64_t) skee64_info.lpBaseOfDll) + 0x1b8af0);
                             UpdateNodeTransformsHook = (void (*)(void*, RE::TESObjectREFR*, bool, bool, const SKEEString* node_name))(
                                 (uint64_t) skee64_info.lpBaseOfDll + 0x78160);
                             DetourTransactionBegin();
@@ -1788,6 +1807,7 @@ namespace plugin {
 #endif
                     if (PARALLEL_TRANSFORM_FIX) {
                         logger::info("SKEE64 041914 parallel transform workaround applying");
+                        nitransforminterface = (void*) (((uint64_t) skee64_info.lpBaseOfDll) + 0x1ce750);
                         UpdateNodeTransformsHook = (void (*)(void*, RE::TESObjectREFR*, bool, bool, const SKEEString* node_name))(
                             (uint64_t) skee64_info.lpBaseOfDll + 0x82a20);
                         DetourTransactionBegin();
@@ -1923,7 +1943,7 @@ namespace plugin {
                     DetourTransactionCommit();
                     if (PARALLEL_TRANSFORM_FIX) {
                         logger::info("SKEE64 U1179 GOG parallel node transform workaround applying");
-
+                        nitransforminterface = (void*) (((uint64_t) skee64_info.lpBaseOfDll) + 0x1e6880);
                         UpdateNodeTransformsHook = (void (*)(void*, RE::TESObjectREFR*, bool, bool, const SKEEString* node_name))(
                             (uint64_t) skee64_info.lpBaseOfDll + 0x96880);
                         DetourTransactionBegin();
@@ -1932,7 +1952,7 @@ namespace plugin {
                         DetourTransactionCommit();
                         
                         SetNodeTransformsHook = (void (*)(void* arg1, uint32_t formID, uint64_t immediate, bool reset))(
-                            (uint64_t) skee64_info.lpBaseOfDll + 0xc72c0);
+                            (uint64_t) skee64_info.lpBaseOfDll + 0x97290);
                         DetourTransactionBegin();
                         DetourUpdateThread(GetCurrentThread());
                         DetourAttach(&(PVOID&) SetNodeTransformsHook, &SetNodeTransformsHook_fn);
@@ -2063,6 +2083,7 @@ namespace plugin {
 #endif
                     if (PARALLEL_TRANSFORM_FIX) {
                         logger::info("SKEEVR parallel transform workaround applying");
+                        nitransforminterface = (void*) (((uint64_t) skee64_info.lpBaseOfDll) + 0x1b5920);
                         UpdateNodeTransformsHook = (void (*)(void*, RE::TESObjectREFR*, bool, bool, const SKEEString* node_name))(
                             (uint64_t) skee64_info.lpBaseOfDll + 0x75350);
                         DetourTransactionBegin();
@@ -2126,6 +2147,7 @@ namespace plugin {
 #endif
                     if (PARALLEL_TRANSFORM_FIX) {
                         logger::info("SKEEVR 0p5 parallel transform workaround applying");
+                        nitransforminterface = (void*) (((uint64_t) skee64_info.lpBaseOfDll) + 0x1c21d0);
                         UpdateNodeTransformsHook = (void (*)(void*, RE::TESObjectREFR*, bool, bool, const SKEEString* node_name))(
                             (uint64_t) skee64_info.lpBaseOfDll + 0x7cd40);
                         DetourTransactionBegin();
@@ -2344,7 +2366,33 @@ namespace plugin {
     void GameEventHandler::onInputLoaded() {
         logger::info("onInputLoaded()");
     }
+    class TransformFix : public RE::BSTEventSink<RE::TESCellFullyLoadedEvent> {
+            RE::BSEventNotifyControl ProcessEvent(const RE::TESCellFullyLoadedEvent* a_event,
+                                                  RE::BSTEventSource<RE::TESCellFullyLoadedEvent>* a_eventSource) {
+                if (a_event && a_event->cell) {
+                    a_event->cell->ForEachReference([](RE::TESObjectREFR* ref) {
+                        if (auto actor = ref->As<RE::Actor>()) {
+                            if (!actor->Is3DLoaded()) {
+                                actor->Load3D(true);
+                            }
+                            if (RE::PlayerCharacter::GetSingleton()) {
+                                RE::FormID fid = actor->formID;
+                                if (nitransforminterface) {
+                                    AddMainTask([fid]() {
+                                        SetNodeTransformsHook_fn(nitransforminterface, (uint32_t) fid, true, true);
+                                        SetNodeTransformsHook_fn(nitransforminterface, (uint32_t) fid, true, false);
+                                    });
+                                }
+                            }
+                        }
+                        return RE::BSContainer::ForEachResult::kContinue;
+                    });
+                }
 
+                return RE::BSEventNotifyControl::kContinue;
+            }
+    };
+    static TransformFix* transform_fix = nullptr;
     void GameEventHandler::onDataLoaded() {
         if (mu_normal_setskin_workaround) {
             {
@@ -2395,6 +2443,9 @@ namespace plugin {
                     }
                 }
             }
+        }
+        if (transform_fix == nullptr && PARALLEL_TRANSFORM_FIX) {
+            RE::ScriptEventSourceHolder::GetSingleton()->AddEventSink<RE::TESCellFullyLoadedEvent>(transform_fix);
         }
         logger::info("onDataLoaded()");
     }
