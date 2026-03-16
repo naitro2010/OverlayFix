@@ -867,7 +867,8 @@ namespace plugin {
                             if (auto arg2_form = RE::TESForm::LookupByID(arg2)) {
                                 if (auto actor = arg2_form->As<RE::Actor>()) {
                                     if (!actor->Is3DLoaded()) {
-                                        actor->Load3D(true);
+                                        logger::warn("Loading 3D for node transform");
+                                        actor->Load3D(false);
                                     }
                                 }
                             }
@@ -878,7 +879,8 @@ namespace plugin {
                     if (auto arg2_form = RE::TESForm::LookupByID(formID)) {
                         if (auto actor = arg2_form->As<RE::Actor>()) {
                             if (!actor->Is3DLoaded()) {
-                                actor->Load3D(true);
+                                logger::warn("Loading 3D for node transform");
+                                actor->Load3D(false);
                             }
                         }
                     }
@@ -2373,13 +2375,13 @@ namespace plugin {
                     a_event->cell->ForEachReference([](RE::TESObjectREFR* ref) {
                         if (auto actor = ref->As<RE::Actor>()) {
                             if (!actor->Is3DLoaded()) {
-                                actor->Load3D(true);
+                                logger::warn("Loading 3D for node transform");
+                                actor->Load3D(false);
                             }
                             if (RE::PlayerCharacter::GetSingleton()) {
                                 RE::FormID fid = actor->formID;
                                 if (nitransforminterface) {
                                     AddMainTask([fid]() {
-                                        SetNodeTransformsHook_fn(nitransforminterface, (uint32_t) fid, true, true);
                                         SetNodeTransformsHook_fn(nitransforminterface, (uint32_t) fid, true, false);
                                     });
                                 }
