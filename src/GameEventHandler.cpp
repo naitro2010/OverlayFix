@@ -2449,7 +2449,7 @@ namespace plugin {
             }
         }
         if (transform_fix == nullptr && PARALLEL_TRANSFORM_FIX) {
-            RE::ScriptEventSourceHolder::GetSingleton()->AddEventSink<RE::TESCellFullyLoadedEvent>(transform_fix);
+            //RE::ScriptEventSourceHolder::GetSingleton()->AddEventSink<RE::TESCellFullyLoadedEvent>(transform_fix);
         }
         logger::info("onDataLoaded()");
     }
