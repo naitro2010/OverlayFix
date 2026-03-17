@@ -876,15 +876,17 @@ namespace plugin {
                         
                         });
                 } else {
-                    if (auto arg2_form = RE::TESForm::LookupByID(formID)) {
-                        if (auto actor = arg2_form->As<RE::Actor>()) {
-                            if (!actor->Is3DLoaded()) {
-                                logger::warn("Loading 3D for node transform");
-                                actor->Load3D(false);
+                    AddMainTask([arg1 = arg1, arg2 = formID, arg3 = immediate, arg4 = reset] {
+                        if (auto arg2_form = RE::TESForm::LookupByID(arg2)) {
+                            if (auto actor = arg2_form->As<RE::Actor>()) {
+                                if (!actor->Is3DLoaded()) {
+                                    logger::warn("Loading 3D for node transform");
+                                    actor->Load3D(false);
+                                }
                             }
                         }
-                    }
-                    SetNodeTransformsHook(arg1, formID, immediate, reset);
+                        SetNodeTransformsHook(arg1, arg2, arg3, arg4);
+                    });
                 }
             }
         } else {
