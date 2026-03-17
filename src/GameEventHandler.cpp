@@ -868,7 +868,7 @@ namespace plugin {
                                 if (auto actor = arg2_form->As<RE::Actor>()) {
                                     if (!actor->Is3DLoaded()) {
                                         logger::warn("Loading 3D for node transform");
-                                        actor->Load3D(false);
+                                        actor->Load3D(true);
                                     }
                                 }
                             }
@@ -881,7 +881,7 @@ namespace plugin {
                             if (auto actor = arg2_form->As<RE::Actor>()) {
                                 if (!actor->Is3DLoaded()) {
                                     logger::warn("Loading 3D for node transform");
-                                    actor->Load3D(false);
+                                    actor->Load3D(true);
                                 }
                             }
                         }
