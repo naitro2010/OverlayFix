@@ -773,7 +773,7 @@ namespace plugin {
                                         !((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IsDeleted()) {
                                         if (!((RE::TESObjectREFR*) arg2)->Is3DLoaded()) {
                                             logger::warn("SkeletonOnAttach 3D not loaded, forcing 3D load now");
-                                            ((RE::TESObjectREFR*) arg2)->Load3D(false);
+                                            ((RE::TESObjectREFR*) arg2)->Load3D(true);
                                             logger::warn("SkeletonOnAttach 3D should be loaded now");
                                         }
                                     }
