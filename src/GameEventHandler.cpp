@@ -773,7 +773,9 @@ namespace plugin {
                                         !((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IsDeleted()) {
                                         if (!((RE::TESObjectREFR*) arg2)->Is3DLoaded()) {
                                             logger::warn("SkeletonOnAttach 3D not loaded, forcing 3D load now");
-                                            ((RE::TESObjectREFR*) arg2)->Load3D(true);
+                                            if (auto node = ((RE::TESObjectREFR*) arg2)->Load3D(true)) {
+                                                ((RE::TESObjectREFR*) arg2)->Set3D(node);
+                                            }
                                             logger::warn("SkeletonOnAttach 3D should be loaded now");
                                         }
                                     }
@@ -872,10 +874,13 @@ namespace plugin {
                     AddMainTask([arg1 = arg1, arg2 = formID, arg3 = immediate, arg4 = reset] {
                         if (auto arg2_form = RE::TESForm::LookupByID(arg2)) {
                             if (auto actor = arg2_form->As<RE::Actor>()) {
-                                if (!actor->Is3DLoaded()) {
+                                if (!actor->Get3D()) {
                                     logger::warn("Loading 3D for node transform");
                                     setnodetransformhook_norecursion.fetch_add(1);
-                                    actor->Load3D(true);
+                                    if (auto node = actor->Load3D(true)) {
+                                        actor->Set3D(node);
+                                    }
+                                    auto new_node=actor->Get3D();
                                     setnodetransformhook_norecursion.fetch_sub(1);
                                 }
                             }
@@ -888,10 +893,13 @@ namespace plugin {
                     AddMainTask([arg1 = arg1, arg2 = formID, arg3 = immediate, arg4 = reset] {
                         if (auto arg2_form = RE::TESForm::LookupByID(arg2)) {
                             if (auto actor = arg2_form->As<RE::Actor>()) {
-                                if (!actor->Is3DLoaded()) {
+                                if (!actor->Get3D()) {
                                     logger::warn("Loading 3D for node transform");
                                     setnodetransformhook_norecursion.fetch_add(1);
-                                    actor->Load3D(true);
+                                    if (auto node = actor->Load3D(true)) {
+                                        actor->Set3D(node);
+                                    }
+                                    auto new_node = actor->Get3D();
                                     setnodetransformhook_norecursion.fetch_sub(1);
                                 }
                             }
