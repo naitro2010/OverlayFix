@@ -772,8 +772,7 @@ namespace plugin {
                                         (((RE::TESObjectREFR*) arg2)->_refCount > 0) &&
                                         !((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IsDeleted()) {
                                         if (!((RE::TESObjectREFR*) arg2)->Is3DLoaded()) {
-                                            logger::warn("SkeletonOnAttach 3D not loaded, forcing 3D load now");
-                                            logger::warn("SkeletonOnAttach 3D should be loaded now");
+                                            logger::warn("SkeletonOnAttach 3D not loaded 1");
                                         }
                                     }
                                     if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() &&
@@ -830,6 +829,75 @@ namespace plugin {
                     } else if (is_main_thread()) {
                         {
                             std::lock_guard l(shader_property_mutex);
+                            if (arg2 && arg2 == RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid)) {
+                                if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() && (((RE::TESObjectREFR*) arg2)->_refCount > 0) &&
+                                    !((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IsDeleted()) {
+                                    if (!((RE::TESObjectREFR*) arg2)->Is3DLoaded()) {
+                                        AddMainTask([=] {
+                                            if (arg2 && arg2 == RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid)) {
+                                                if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() &&
+                                                    (((RE::TESObjectREFR*) arg2)->_refCount > 0) &&
+                                                    !((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IsDeleted()) {
+                                                    if (!((RE::TESObjectREFR*) arg2)->Is3DLoaded()) {
+                                                        logger::warn("SkeletonOnAttach 3D not loaded 2");
+                                                    }
+                                                }
+                                                if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() &&
+                                                    (((RE::TESObjectREFR*) arg2)->_refCount > 0) &&
+                                                    ((RE::TESObjectREFR*) arg2)->Is3DLoaded() &&
+                                                    !((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IsDeleted()) {
+                                                    if (!arg5refr || arg5refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg5ID)) {
+                                                        if (!arg7refr || arg7refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg7ID)) {
+                                                            if (!arg8refr ||
+                                                                arg8refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg8ID)) {
+                                                                if (!arg5 || (((RE::NiAVObject*) arg5)->_refCount > 0)) {
+                                                                    if (!arg7 || (((RE::NiAVObject*) arg7)->_refCount > 0)) {
+                                                                        if (!arg8 || (((RE::NiAVObject*) arg8)->_refCount > 0)) {
+                                                                            if (arg5 && ((RE::NiAVObject*) arg5)->parent) {
+                                                                                if (arg7 && ((RE::NiAVObject*) arg7)->parent) {
+                                                                                    if (arg8 && ((RE::NiAVObject*) arg8)->parent) {
+                                                                                        std::lock_guard l(shader_property_mutex);
+                                                                                        SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5,
+                                                                                                             arg6, arg7, arg8);
+                                                                                    } else {
+                                                                                        logger::error("arg8 NiAVObject not attached");
+                                                                                    }
+                                                                                } else {
+                                                                                    logger::error("arg7 NiAVObject not attached");
+                                                                                }
+                                                                            } else {
+                                                                                logger::error("arg5 NiAVObject not attached");
+                                                                            }
+
+                                                                        } else {
+                                                                            logger::error("arg8 no references");
+                                                                        }
+                                                                    } else {
+                                                                        logger::error("arg7 no references");
+                                                                    }
+                                                                } else {
+                                                                    logger::error("arg5 no references");
+                                                                }
+                                                            } else {
+                                                                logger::error("arg8 form doesn't match");
+                                                            }
+                                                        } else {
+                                                            logger::error("arg7 form doesn't match");
+                                                        }
+                                                    } else {
+                                                        logger::error("arg5 form doesn't match");
+                                                    }
+                                                } else {
+                                                    logger::warn("SkeletonOnAttach 3D not loaded");
+                                                }
+                                            } else if (arg2) {
+                                                logger::error("arg2 form doesn't match");
+                                            }
+                                        });
+                                        return;
+                                    }
+                                }
+                            }
                             SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
                             if (auto refr = (RE::TESObjectREFR*) arg2) {
                                 if (auto actor = refr->As<RE::Actor>()) {
