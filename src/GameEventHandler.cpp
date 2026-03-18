@@ -833,6 +833,7 @@ namespace plugin {
                                 if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() && (((RE::TESObjectREFR*) arg2)->_refCount > 0) &&
                                     !((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IsDeleted()) {
                                     if (!((RE::TESObjectREFR*) arg2)->Is3DLoaded()) {
+                                        logger::warn("SkeletonOnAttach 3D not loaded 3");
                                         AddMainTask([=] {
                                             if (arg2 && arg2 == RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid)) {
                                                 if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() &&
@@ -2441,10 +2442,6 @@ namespace plugin {
                 if (a_event && a_event->cell) {
                     a_event->cell->ForEachReference([](RE::TESObjectREFR* ref) {
                         if (auto actor = ref->As<RE::Actor>()) {
-                            if (!actor->Is3DLoaded()) {
-                                //logger::warn("Loading 3D for node transform");
-                                //actor->Load3D(false);
-                            }
                             if (RE::PlayerCharacter::GetSingleton()) {
                                 RE::FormID fid = actor->formID;
                                 if (nitransforminterface) {
@@ -2459,8 +2456,28 @@ namespace plugin {
                 return RE::BSEventNotifyControl::kContinue;
             }
     };
+    class TransformFixMoved : public RE::BSTEventSink<RE::TESMoveAttachDetachEvent> {
+            RE::BSEventNotifyControl ProcessEvent(const RE::TESMoveAttachDetachEvent* a_event,
+                                                  RE::BSTEventSource<RE::TESMoveAttachDetachEvent>* a_eventSource) {
+                if (a_event && a_event->isCellAttached) {
+                    if (a_event->movedRef) {
+                        if (auto actor = a_event->movedRef->As<RE::Actor>()) {
+                            if (RE::PlayerCharacter::GetSingleton()) {
+                                RE::FormID fid = actor->formID;
+                                if (nitransforminterface) {
+                                    AddMainTask([fid]() { SetNodeTransformsHook_fn(nitransforminterface, (uint32_t) fid, true, false); });
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return RE::BSEventNotifyControl::kContinue;
+            }
+    };
     bool setskin_workaround_aoplied = false;
     static TransformFix* transform_fix = nullptr;
+    static TransformFixMoved* transform_fix_moved = nullptr;
     void GameEventHandler::onDataLoaded() {
         if (mu_normal_setskin_workaround && setskin_workaround_aoplied==false) {
             {
@@ -2513,13 +2530,19 @@ namespace plugin {
             }
             setskin_workaround_aoplied = true;
         }
-        if (Set3DOrig == nullptr) {
+        if (Set3DOrig == nullptr && PARALLEL_TRANSFORM_FIX) {
             Set3DOrig =
                 (void (*)(RE::Actor* actor, RE::NiAVObject* obj, bool queuetasks))(REL::VariantID(36199, 37178, 0x5d6b30).address());
             DetourTransactionBegin();
             DetourUpdateThread(GetCurrentThread());
             DetourAttach(&(PVOID&) Set3DOrig, &Set3DHook);
             DetourTransactionCommit();
+        }
+        if (transform_fix == nullptr && PARALLEL_TRANSFORM_FIX) {
+            transform_fix = new TransformFix();
+            RE::ScriptEventSourceHolder::GetSingleton()->AddEventSink<RE::TESCellFullyLoadedEvent>(transform_fix);
+            transform_fix_moved = new TransformFixMoved();
+            RE::ScriptEventSourceHolder::GetSingleton()->AddEventSink<RE::TESMoveAttachDetachEvent>(transform_fix_moved);
         }
         logger::info("onDataLoaded()");
     }
