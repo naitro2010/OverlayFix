@@ -773,9 +773,6 @@ namespace plugin {
                                         !((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IsDeleted()) {
                                         if (!((RE::TESObjectREFR*) arg2)->Is3DLoaded()) {
                                             logger::warn("SkeletonOnAttach 3D not loaded, forcing 3D load now");
-                                            if (auto node = ((RE::TESObjectREFR*) arg2)->Load3D(true)) {
-                                                ((RE::TESObjectREFR*) arg2)->Set3D(node);
-                                            }
                                             logger::warn("SkeletonOnAttach 3D should be loaded now");
                                         }
                                     }
@@ -871,39 +868,13 @@ namespace plugin {
             if (auto task_int = SKSE::GetTaskInterface()) {
                 immediate = true;
                 if (!is_main_thread()) {
-                    AddMainTask([arg1 = arg1, arg2 = formID, arg3 = immediate, arg4 = reset] {
-                        if (auto arg2_form = RE::TESForm::LookupByID(arg2)) {
-                            if (auto actor = arg2_form->As<RE::Actor>()) {
-                                if (!actor->Get3D()) {
-                                    logger::warn("Loading 3D for node transform");
-                                    setnodetransformhook_norecursion.fetch_add(1);
-                                    if (auto node = actor->Load3D(true)) {
-                                        actor->Set3D(node);
-                                    }
-                                    auto new_node=actor->Get3D();
-                                    setnodetransformhook_norecursion.fetch_sub(1);
-                                }
-                            }
-                        }
+                    AddMainTask([arg1 = arg1, arg2 = formID, arg3 = immediate, arg4 = reset] { 
                         setnodetransformhook_norecursion.fetch_add(1);
                         SetNodeTransformsHook(arg1, arg2, arg3, arg4);
                         setnodetransformhook_norecursion.fetch_sub(1);
                     });
                 } else {
                     AddMainTask([arg1 = arg1, arg2 = formID, arg3 = immediate, arg4 = reset] {
-                        if (auto arg2_form = RE::TESForm::LookupByID(arg2)) {
-                            if (auto actor = arg2_form->As<RE::Actor>()) {
-                                if (!actor->Get3D()) {
-                                    logger::warn("Loading 3D for node transform");
-                                    setnodetransformhook_norecursion.fetch_add(1);
-                                    if (auto node = actor->Load3D(true)) {
-                                        actor->Set3D(node);
-                                    }
-                                    auto new_node = actor->Get3D();
-                                    setnodetransformhook_norecursion.fetch_sub(1);
-                                }
-                            }
-                        }
                         setnodetransformhook_norecursion.fetch_add(1);
                         SetNodeTransformsHook(arg1, arg2, arg3, arg4);
                         setnodetransformhook_norecursion.fetch_sub(1);
@@ -1273,7 +1244,13 @@ namespace plugin {
     static bool skip_load = false;
     static bool vr_esl = true;
     static bool do_samrim_name_fix = false;
-
+    auto Set3DOrig = (void (*)(RE::Actor* actor, RE::NiAVObject* obj, bool queuetasks)) nullptr;
+    void Set3DHook(RE::Actor* actor, RE::NiAVObject* obj, bool queuetasks) {
+        Set3DOrig(actor, obj, queuetasks);
+        if (actor && nitransforminterface) {
+            SetNodeTransformsHook_fn(nitransforminterface, actor->formID, true, false);
+        }
+    }
     auto LoadMainMenuOrig = (void (*)(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4)) 0x0;
     static void LoadMainMenuHook(uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4) {
         {
@@ -2414,9 +2391,10 @@ namespace plugin {
                 return RE::BSEventNotifyControl::kContinue;
             }
     };
+    bool setskin_workaround_aoplied = false;
     static TransformFix* transform_fix = nullptr;
     void GameEventHandler::onDataLoaded() {
-        if (mu_normal_setskin_workaround) {
+        if (mu_normal_setskin_workaround && setskin_workaround_aoplied==false) {
             {
                 if (auto VM = RE::BSScript::Internal::VirtualMachine::GetSingleton()) {
                     RE::BSTSmartPointer<RE::BSScript::ObjectTypeInfo> classInfoPtr = nullptr;
@@ -2465,9 +2443,15 @@ namespace plugin {
                     }
                 }
             }
+            setskin_workaround_aoplied = true;
         }
-        if (transform_fix == nullptr && PARALLEL_TRANSFORM_FIX) {
-            //RE::ScriptEventSourceHolder::GetSingleton()->AddEventSink<RE::TESCellFullyLoadedEvent>(transform_fix);
+        if (Set3DOrig == nullptr) {
+            Set3DOrig =
+                (void (*)(RE::Actor* actor, RE::NiAVObject* obj, bool queuetasks))(REL::VariantID(36199, 37178, 0x5d6b30).address());
+            DetourTransactionBegin();
+            DetourUpdateThread(GetCurrentThread());
+            DetourAttach(&(PVOID&) Set3DOrig, &Set3DHook);
+            DetourTransactionCommit();
         }
         logger::info("onDataLoaded()");
     }
