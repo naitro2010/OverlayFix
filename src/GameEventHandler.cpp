@@ -2459,7 +2459,7 @@ namespace plugin {
     class TransformFixMoved : public RE::BSTEventSink<RE::TESMoveAttachDetachEvent> {
             RE::BSEventNotifyControl ProcessEvent(const RE::TESMoveAttachDetachEvent* a_event,
                                                   RE::BSTEventSource<RE::TESMoveAttachDetachEvent>* a_eventSource) {
-                if (a_event && a_event->isCellAttached) {
+                if (a_event) {
                     if (a_event->movedRef) {
                         if (auto actor = a_event->movedRef->As<RE::Actor>()) {
                             if (RE::PlayerCharacter::GetSingleton()) {
