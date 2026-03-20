@@ -2456,6 +2456,26 @@ namespace plugin {
                 return RE::BSEventNotifyControl::kContinue;
             }
     };
+    
+    class TransformFixCell : public RE::BSTEventSink<RE::TESCellAttachDetachEvent> {
+            RE::BSEventNotifyControl ProcessEvent(const RE::TESCellAttachDetachEvent* a_event,
+                                                  RE::BSTEventSource<RE::TESCellAttachDetachEvent>* a_eventSource) {
+                if (a_event) {
+                    if (a_event->reference) {
+                        if (auto actor = a_event->reference->As<RE::Actor>()) {
+                            if (RE::PlayerCharacter::GetSingleton()) {
+                                RE::FormID fid = actor->formID;
+                                if (nitransforminterface) {
+                                    AddMainTask([fid]() { SetNodeTransformsHook_fn(nitransforminterface, (uint32_t) fid, true, false); });
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return RE::BSEventNotifyControl::kContinue;
+            }
+    };
     class TransformFixMoved : public RE::BSTEventSink<RE::TESMoveAttachDetachEvent> {
             RE::BSEventNotifyControl ProcessEvent(const RE::TESMoveAttachDetachEvent* a_event,
                                                   RE::BSTEventSource<RE::TESMoveAttachDetachEvent>* a_eventSource) {
@@ -2478,6 +2498,7 @@ namespace plugin {
     bool setskin_workaround_aoplied = false;
     static TransformFix* transform_fix = nullptr;
     static TransformFixMoved* transform_fix_moved = nullptr;
+    static TransformFixCell* transform_fix_cell = nullptr;
     void GameEventHandler::onDataLoaded() {
         if (mu_normal_setskin_workaround && setskin_workaround_aoplied==false) {
             {
@@ -2543,6 +2564,8 @@ namespace plugin {
             RE::ScriptEventSourceHolder::GetSingleton()->AddEventSink<RE::TESCellFullyLoadedEvent>(transform_fix);
             transform_fix_moved = new TransformFixMoved();
             RE::ScriptEventSourceHolder::GetSingleton()->AddEventSink<RE::TESMoveAttachDetachEvent>(transform_fix_moved);
+            transform_fix_cell = new TransformFixCell();
+            RE::ScriptEventSourceHolder::GetSingleton()->AddEventSink<RE::TESCellAttachDetachEvent>(transform_fix_cell);
         }
         logger::info("onDataLoaded()");
     }
