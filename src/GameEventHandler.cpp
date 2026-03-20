@@ -2456,7 +2456,29 @@ namespace plugin {
                 return RE::BSEventNotifyControl::kContinue;
             }
     };
-    
+    class TransformFixLoaded : public RE::BSTEventSink<RE::TESObjectLoadedEvent> {
+            RE::BSEventNotifyControl ProcessEvent(const RE::TESObjectLoadedEvent* a_event,
+                                                  RE::BSTEventSource<RE::TESObjectLoadedEvent>* a_eventSource) {
+                if (a_event) {
+                    if (a_event->loaded == true) {
+                        if (a_event->formID) {
+                            if (auto form = RE::TESForm::LookupByID(a_event->formID)) {
+                                if (auto actor = form->As<RE::Actor>()) {
+                                    if (nitransforminterface) {
+                                        auto fid = a_event->formID;
+
+                                        AddMainTask(
+                                            [fid]() { SetNodeTransformsHook_fn(nitransforminterface, (uint32_t) fid, true, false); });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                return RE::BSEventNotifyControl::kContinue;
+            }
+
+    };
     class TransformFixCell : public RE::BSTEventSink<RE::TESCellAttachDetachEvent> {
             RE::BSEventNotifyControl ProcessEvent(const RE::TESCellAttachDetachEvent* a_event,
                                                   RE::BSTEventSource<RE::TESCellAttachDetachEvent>* a_eventSource) {
@@ -2499,6 +2521,7 @@ namespace plugin {
     static TransformFix* transform_fix = nullptr;
     static TransformFixMoved* transform_fix_moved = nullptr;
     static TransformFixCell* transform_fix_cell = nullptr;
+    static TransformFixLoaded* transform_fix_loaded = nullptr;
     void GameEventHandler::onDataLoaded() {
         if (mu_normal_setskin_workaround && setskin_workaround_aoplied==false) {
             {
@@ -2566,6 +2589,8 @@ namespace plugin {
             RE::ScriptEventSourceHolder::GetSingleton()->AddEventSink<RE::TESMoveAttachDetachEvent>(transform_fix_moved);
             transform_fix_cell = new TransformFixCell();
             RE::ScriptEventSourceHolder::GetSingleton()->AddEventSink<RE::TESCellAttachDetachEvent>(transform_fix_cell);
+            transform_fix_loaded = new TransformFixLoaded();
+            RE::ScriptEventSourceHolder::GetSingleton()->AddEventSink<RE::TESObjectLoadedEvent>(transform_fix_loaded);
         }
         logger::info("onDataLoaded()");
     }
