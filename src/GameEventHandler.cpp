@@ -918,12 +918,10 @@ namespace plugin {
                         setnodetransformhook_norecursion.fetch_sub(1);
                     });
                 } else {
-                    AddMainTask([arg1 = arg1, arg2 = formID, arg3 = immediate, arg4 = reset] {
-                        setnodetransformhook_norecursion.fetch_add(1);
-                        std::lock_guard l(shader_property_mutex);
-                        SetNodeTransformsHook(arg1, arg2, arg3, arg4);
-                        setnodetransformhook_norecursion.fetch_sub(1);
-                    });
+                    setnodetransformhook_norecursion.fetch_add(1);
+                    std::lock_guard l(shader_property_mutex);
+                    SetNodeTransformsHook(arg1, formID,immediate,reset);
+                    setnodetransformhook_norecursion.fetch_sub(1);
                 }
             }
         } else {
@@ -1312,6 +1310,29 @@ namespace plugin {
     void GameEventHandler::onInputLoaded() {
         logger::info("onInputLoaded()");
     }
+    void set_node_func(int wait_count, void* iface, uint32_t fid, uint64_t immediate, bool reset) {
+        std::thread([=] {
+            if (wait_count > 0) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+            } else {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            }
+            AddMainTask([=] {
+                logger::warn("set_node_func wait_count {}", wait_count);
+                if (auto actor = RE::TESForm::LookupByID<RE::Actor>(fid)) {
+                    if (actor->Is3DLoaded()) {
+                        if (nitransforminterface) {
+                            SetNodeTransformsHook_fn(nitransforminterface, (uint32_t) fid, true, false);
+                            return;
+                        }
+                    }
+                }
+                if (wait_count < 6) {
+                    set_node_func(wait_count + 1, iface, fid, immediate, reset);
+                }
+            });
+        }).detach();
+    };
     class TransformFix : public RE::BSTEventSink<RE::TESCellFullyLoadedEvent> {
             RE::BSEventNotifyControl ProcessEvent(const RE::TESCellFullyLoadedEvent* a_event,
                                                   RE::BSTEventSource<RE::TESCellFullyLoadedEvent>* a_eventSource) {
@@ -1364,7 +1385,7 @@ namespace plugin {
                             if (RE::PlayerCharacter::GetSingleton()) {
                                 RE::FormID fid = actor->formID;
                                 if (nitransforminterface) {
-                                    AddMainTask([fid]() { SetNodeTransformsHook_fn(nitransforminterface, (uint32_t) fid, true, false); });
+                                    set_node_func(0, nitransforminterface, fid, true, false);
                                 }
                             }
                         }
@@ -1374,6 +1395,7 @@ namespace plugin {
                 return RE::BSEventNotifyControl::kContinue;
             }
     };
+
     class TransformFixMoved : public RE::BSTEventSink<RE::TESMoveAttachDetachEvent> {
             RE::BSEventNotifyControl ProcessEvent(const RE::TESMoveAttachDetachEvent* a_event,
                                                   RE::BSTEventSource<RE::TESMoveAttachDetachEvent>* a_eventSource) {
@@ -1383,7 +1405,7 @@ namespace plugin {
                             if (RE::PlayerCharacter::GetSingleton()) {
                                 RE::FormID fid = actor->formID;
                                 if (nitransforminterface) {
-                                    AddMainTask([fid]() { SetNodeTransformsHook_fn(nitransforminterface, (uint32_t) fid, true, false); });
+                                    set_node_func(0, nitransforminterface, fid, true, false);
                                 }
                             }
                         }
@@ -2560,17 +2582,22 @@ namespace plugin {
             DetourAttach(&(PVOID&) Set3DOrig, &Set3DHook);
             DetourTransactionCommit();
         }*/
-        /*
-        if (transform_fix == nullptr && PARALLEL_TRANSFORM_FIX) {
+        
+        if (transform_fix_moved == nullptr && transform_fix_cell==nullptr && PARALLEL_TRANSFORM_FIX) {
+            /*
             transform_fix = new TransformFix();
             RE::ScriptEventSourceHolder::GetSingleton()->AddEventSink<RE::TESCellFullyLoadedEvent>(transform_fix);
+            */
             transform_fix_moved = new TransformFixMoved();
             RE::ScriptEventSourceHolder::GetSingleton()->AddEventSink<RE::TESMoveAttachDetachEvent>(transform_fix_moved);
+        
             transform_fix_cell = new TransformFixCell();
             RE::ScriptEventSourceHolder::GetSingleton()->AddEventSink<RE::TESCellAttachDetachEvent>(transform_fix_cell);
+         /*
             transform_fix_loaded = new TransformFixLoaded();
             RE::ScriptEventSourceHolder::GetSingleton()->AddEventSink<RE::TESObjectLoadedEvent>(transform_fix_loaded);
-        }*/
+            */
+        }
         logger::info("onDataLoaded()");
     }
 
