@@ -689,7 +689,9 @@ namespace plugin {
                        RE::NiPointer<RE::NiAVObject> arg8ptr, RE::TESObjectREFR* arg5refr, RE::TESObjectREFR* arg7refr,
                        RE::TESObjectREFR* arg8refr){
         std::thread([=] {
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            if (wait_count > 0) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+            }
             AddMainTask([=] {
                 logger::warn("SkeletonOnAttach wait_count {}", wait_count);
                 if (arg2 && arg2 == RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid)) {
