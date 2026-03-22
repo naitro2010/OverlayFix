@@ -684,6 +684,77 @@ namespace plugin {
 
     static bool PARALLEL_MORPH_FIX = true;
     static bool PARALLEL_TRANSFORM_FIX = true;
+    void  attach_func(int wait_count, void* arg1, void* arg2, void* arg3, void* arg4, bool arg6, RE::FormID refrid, RE::FormID arg5ID,
+                       RE::FormID arg7ID, RE::FormID arg8ID, RE::NiPointer<RE::NiAVObject> arg5ptr, RE::NiPointer<RE::NiAVObject> arg7ptr,
+                       RE::NiPointer<RE::NiAVObject> arg8ptr, RE::TESObjectREFR* arg5refr, RE::TESObjectREFR* arg7refr,
+                       RE::TESObjectREFR* arg8refr){
+        std::thread([=] {
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            AddMainTask([=] {
+                logger::warn("SkeletonOnAttach wait_count {}", wait_count);
+                if (arg2 && arg2 == RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid)) {
+                    if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() && (((RE::TESObjectREFR*) arg2)->_refCount > 0) &&
+                        !((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IsDeleted()) {
+                        if (!((RE::TESObjectREFR*) arg2)->Is3DLoaded()) {
+                            logger::warn("SkeletonOnAttach 3D not loaded 1");
+                        }
+                    }
+                    if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() && (((RE::TESObjectREFR*) arg2)->_refCount > 0) &&
+                        ((RE::TESObjectREFR*) arg2)->Is3DLoaded() && !((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IsDeleted()) {
+                        if (!arg5refr || arg5refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg5ID)) {
+                            if (!arg7refr || arg7refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg7ID)) {
+                                if (!arg8refr || arg8refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg8ID)) {
+                                    if (!arg5ptr || (((RE::NiAVObject*) arg5ptr.get())->_refCount > 0)) {
+                                        if (!arg7ptr || (((RE::NiAVObject*) arg7ptr.get())->_refCount > 0)) {
+                                            if (!arg8ptr || (((RE::NiAVObject*) arg8ptr.get())->_refCount > 0)) {
+                                                if (arg5ptr) {
+                                                    if (arg7ptr) {
+                                                        if (arg8ptr) {
+                                                            std::lock_guard l(shader_property_mutex);
+                                                            SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5ptr.get(), arg6, arg7ptr.get(),
+                                                                                 arg8ptr.get());
+                                                            return;
+                                                        } else {
+                                                            logger::error("arg8 NiAVObject not attached");
+                                                        }
+                                                    } else {
+                                                        logger::error("arg7 NiAVObject not attached");
+                                                    }
+                                                } else {
+                                                    logger::error("arg5 NiAVObject not attached");
+                                                }
+
+                                            } else {
+                                                logger::error("arg8 no references");
+                                            }
+                                        } else {
+                                            logger::error("arg7 no references");
+                                        }
+                                    } else {
+                                        logger::error("arg5 no references");
+                                    }
+                                } else {
+                                    logger::error("arg8 form doesn't match");
+                                }
+                            } else {
+                                logger::error("arg7 form doesn't match");
+                            }
+                        } else {
+                            logger::error("arg5 form doesn't match");
+                        }
+                    } else {
+                        logger::warn("SkeletonOnAttach 3D not loaded");
+                    }
+                } else if (arg2) {
+                    logger::error("arg2 form doesn't match");
+                }
+                if (wait_count < 6) {
+                    attach_func(wait_count + 1, arg1, arg2, arg3, arg4, arg6, refrid, arg5ID, arg7ID, arg8ID, arg5ptr, arg7ptr, arg8ptr,
+                                arg5refr, arg7refr, arg8refr);
+                }
+            });
+        }).detach();
+    };
     static void SkeletonOnAttach_fn(void* arg1, void* arg2, void* arg3, void* arg4, void* arg5, bool arg6, void* arg7, void* arg8) {
         {
             if (!PARALLEL_TRANSFORM_FIX) {
@@ -703,15 +774,18 @@ namespace plugin {
             RE::FormID refrid;
             if (!is_loading) {
                 if (PARALLEL_TRANSFORM_FIX) {
+
+
+                    
                     if ((RE::TESObjectREFR*) arg2) {
                         refrid = ((RE::TESObjectREFR*) arg2)->GetFormID();
                         RE::TESObjectREFR* ref = (RE::TESObjectREFR*) arg2;
                     } else {
                         return;
                     }
-                    RE::FormID arg5ID;
-                    RE::FormID arg7ID;
-                    RE::FormID arg8ID;
+                    RE::FormID arg5ID = 0x0;
+                    RE::FormID arg7ID = 0x0;
+                    RE::FormID arg8ID = 0x0;
                     RE::TESObjectREFR* arg5refr = nullptr;
                     RE::TESObjectREFR* arg7refr = nullptr;
                     RE::TESObjectREFR* arg8refr = nullptr;
@@ -741,69 +815,14 @@ namespace plugin {
                     }
                     if (!is_main_thread()) {
                         if (auto task_int = SKSE::GetTaskInterface()) {
-                            RE::NiPointer arg5ptr((RE::NiAVObject*)arg5);
+                            RE::NiPointer arg5ptr((RE::NiAVObject*) arg5);
                             RE::NiPointer arg7ptr((RE::NiAVObject*) arg7);
                             RE::NiPointer arg8ptr((RE::NiAVObject*) arg8);
-                            AddMainTask([=] {
-                                if (arg2 && arg2 == RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid)) {
-                                    if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() &&
-                                        (((RE::TESObjectREFR*) arg2)->_refCount > 0) &&
-                                        !((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IsDeleted()) {
-                                        if (!((RE::TESObjectREFR*) arg2)->Is3DLoaded()) {
-                                            logger::warn("SkeletonOnAttach 3D not loaded 1");
-                                        }
-                                    }
-                                    if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() &&
-                                        (((RE::TESObjectREFR*) arg2)->_refCount > 0) && ((RE::TESObjectREFR*) arg2)->Is3DLoaded() &&
-                                        !((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IsDeleted()) {
-                                        if (!arg5refr || arg5refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg5ID)) {
-                                            if (!arg7refr || arg7refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg7ID)) {
-                                                if (!arg8refr || arg8refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg8ID)) {
-                                                    if (!arg5 || (((RE::NiAVObject*) arg5)->_refCount > 0)) {
-                                                        if (!arg7 || (((RE::NiAVObject*) arg7)->_refCount > 0)) {
-                                                            if (!arg8 || (((RE::NiAVObject*) arg8)->_refCount > 0)) {
-                                                                if (arg5ptr) {
-                                                                    if (arg7ptr) {
-                                                                        if (arg8ptr) {
-                                                                            std::lock_guard l(shader_property_mutex);
-                                                                            SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5, arg6, arg7,
-                                                                                                 arg8);
-                                                                        } else {
-                                                                            logger::error("arg8 NiAVObject not attached");
-                                                                        }
-                                                                    } else {
-                                                                        logger::error("arg7 NiAVObject not attached");
-                                                                    }
-                                                                } else {
-                                                                    logger::error("arg5 NiAVObject not attached");
-                                                                }
 
-                                                            } else {
-                                                                logger::error("arg8 no references");
-                                                            }
-                                                        } else {
-                                                            logger::error("arg7 no references");
-                                                        }
-                                                    } else {
-                                                        logger::error("arg5 no references");
-                                                    }
-                                                } else {
-                                                    logger::error("arg8 form doesn't match");
-                                                }
-                                            } else {
-                                                logger::error("arg7 form doesn't match");
-                                            }
-                                        } else {
-                                            logger::error("arg5 form doesn't match");
-                                        }
-                                    } else {
-                                        logger::warn("SkeletonOnAttach 3D not loaded");
-                                    }
-                                } else if (arg2) {
-                                    logger::error("arg2 form doesn't match");
-                                }
-                            });
+                            attach_func(0, arg1, arg2, arg3, arg4, arg6, refrid, arg5ID, arg7ID, arg8ID, arg5ptr, arg7ptr, arg8ptr,
+                                        arg5refr, arg7refr, arg8refr);
                         }
+                    
                     } else if (is_main_thread()) {
                         {
                             std::lock_guard l(shader_property_mutex);
@@ -811,68 +830,43 @@ namespace plugin {
                                 if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() && (((RE::TESObjectREFR*) arg2)->_refCount > 0) &&
                                     !((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IsDeleted()) {
                                     if (!((RE::TESObjectREFR*) arg2)->Is3DLoaded()) {
-                                        logger::warn("SkeletonOnAttach 3D not loaded 3");
-                                        AddMainTask([=] {
-                                            if (arg2 && arg2 == RE::TESForm::LookupByID<RE::TESObjectREFR>(refrid)) {
-                                                if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() &&
-                                                    (((RE::TESObjectREFR*) arg2)->_refCount > 0) &&
-                                                    !((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IsDeleted()) {
-                                                    if (!((RE::TESObjectREFR*) arg2)->Is3DLoaded()) {
-                                                        logger::warn("SkeletonOnAttach 3D not loaded 2");
-                                                    }
-                                                }
-                                                if (((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>() &&
-                                                    (((RE::TESObjectREFR*) arg2)->_refCount > 0) &&
-                                                    ((RE::TESObjectREFR*) arg2)->Is3DLoaded() &&
-                                                    !((RE::TESObjectREFR*) arg2)->As<RE::TESObjectREFR>()->IsDeleted()) {
-                                                    if (!arg5refr || arg5refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg5ID)) {
-                                                        if (!arg7refr || arg7refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg7ID)) {
-                                                            if (!arg8refr ||
-                                                                arg8refr == RE::TESForm::LookupByID<RE::TESObjectREFR>(arg8ID)) {
-                                                                if (!arg5 || (((RE::NiAVObject*) arg5)->_refCount > 0)) {
-                                                                    if (!arg7 || (((RE::NiAVObject*) arg7)->_refCount > 0)) {
-                                                                        if (!arg8 || (((RE::NiAVObject*) arg8)->_refCount > 0)) {
-                                                                            if (arg5 && ((RE::NiAVObject*) arg5)->parent) {
-                                                                                if (arg7 && ((RE::NiAVObject*) arg7)->parent) {
-                                                                                    if (arg8 && ((RE::NiAVObject*) arg8)->parent) {
-                                                                                        std::lock_guard l(shader_property_mutex);
-                                                                                        SkeletonOnAttachHook(arg1, arg2, arg3, arg4, arg5,
-                                                                                                             arg6, arg7, arg8);
-                                                                                    } else {
-                                                                                        logger::error("arg8 NiAVObject not attached");
-                                                                                    }
-                                                                                } else {
-                                                                                    logger::error("arg7 NiAVObject not attached");
-                                                                                }
-                                                                            } else {
-                                                                                logger::error("arg5 NiAVObject not attached");
-                                                                            }
-
-                                                                        } else {
-                                                                            logger::error("arg8 no references");
-                                                                        }
-                                                                    } else {
-                                                                        logger::error("arg7 no references");
-                                                                    }
-                                                                } else {
-                                                                    logger::error("arg5 no references");
-                                                                }
-                                                            } else {
-                                                                logger::error("arg8 form doesn't match");
-                                                            }
-                                                        } else {
-                                                            logger::error("arg7 form doesn't match");
-                                                        }
-                                                    } else {
-                                                        logger::error("arg5 form doesn't match");
-                                                    }
-                                                } else {
-                                                    logger::warn("SkeletonOnAttach 3D not loaded");
-                                                }
-                                            } else if (arg2) {
-                                                logger::error("arg2 form doesn't match");
+                                        logger::warn("SkeletonOnAttach 3D not loaded");
+                                        if ((RE::TESObjectREFR*) arg2) {
+                                            refrid = ((RE::TESObjectREFR*) arg2)->GetFormID();
+                                            RE::TESObjectREFR* ref = (RE::TESObjectREFR*) arg2;
+                                        } else {
+                                            return;
+                                        }
+                                        if ((RE::NiAVObject*) arg5) {
+                                            if (auto arg5r = GetUserDataFixed((RE::NiAVObject*) arg5)) {
+                                                arg5refr = arg5r;
+                                                arg5ID = arg5refr->GetFormID();
+                                            } else {
+                                                logger::error("No User Data for OBJ 5");
                                             }
-                                        });
+                                        }
+                                        if ((RE::NiNode*) arg7) {
+                                            if (auto arg7r = GetUserDataFixed((RE::NiAVObject*) arg7)) {
+                                                arg7refr = arg7r;
+                                                arg7ID = arg7refr->GetFormID();
+                                            } else {
+                                                logger::error("No User Data for OBJ 7");
+                                            }
+                                        }
+                                        if ((RE::NiNode*) arg8) {
+                                            if (auto arg8r = GetUserDataFixed((RE::NiAVObject*) arg8)) {
+                                                arg8refr = arg8r;
+                                                arg8ID = arg8refr->GetFormID();
+                                            } else {
+                                                logger::error("No User Data for OBJ 8");
+                                            }
+                                        }
+                                        RE::NiPointer arg5ptr((RE::NiAVObject*) arg5);
+                                        RE::NiPointer arg7ptr((RE::NiAVObject*) arg7);
+                                        RE::NiPointer arg8ptr((RE::NiAVObject*) arg8);
+
+                                        attach_func(0, arg1, arg2, arg3, arg4, arg6, refrid, arg5ID, arg7ID, arg8ID, arg5ptr,
+                                                    arg7ptr, arg8ptr, arg5refr, arg7refr, arg8refr);
                                         return;
                                     }
                                 }
@@ -1309,6 +1303,100 @@ namespace plugin {
         LoadMainMenuOrig(arg1, arg2, arg3, arg4);
     }
     void GameEventHandler::onPostPostLoad() {
+        
+        logger::info("onPostPostLoad()");
+    }
+
+    void GameEventHandler::onInputLoaded() {
+        logger::info("onInputLoaded()");
+    }
+    class TransformFix : public RE::BSTEventSink<RE::TESCellFullyLoadedEvent> {
+            RE::BSEventNotifyControl ProcessEvent(const RE::TESCellFullyLoadedEvent* a_event,
+                                                  RE::BSTEventSource<RE::TESCellFullyLoadedEvent>* a_eventSource) {
+                if (a_event && a_event->cell) {
+                    a_event->cell->ForEachReference([](RE::TESObjectREFR* ref) {
+                        if (auto actor = ref->As<RE::Actor>()) {
+                            if (RE::PlayerCharacter::GetSingleton()) {
+                                RE::FormID fid = actor->formID;
+                                if (nitransforminterface) {
+                                    AddMainTask([fid]() { SetNodeTransformsHook_fn(nitransforminterface, (uint32_t) fid, true, false); });
+                                }
+                            }
+                        }
+                        return RE::BSContainer::ForEachResult::kContinue;
+                    });
+                }
+
+                return RE::BSEventNotifyControl::kContinue;
+            }
+    };
+    class TransformFixLoaded : public RE::BSTEventSink<RE::TESObjectLoadedEvent> {
+            RE::BSEventNotifyControl ProcessEvent(const RE::TESObjectLoadedEvent* a_event,
+                                                  RE::BSTEventSource<RE::TESObjectLoadedEvent>* a_eventSource) {
+                if (a_event) {
+                    if (a_event->loaded == true) {
+                        if (a_event->formID) {
+                            if (auto form = RE::TESForm::LookupByID(a_event->formID)) {
+                                if (auto actor = form->As<RE::Actor>()) {
+                                    if (nitransforminterface) {
+                                        auto fid = a_event->formID;
+
+                                        AddMainTask(
+                                            [fid]() { SetNodeTransformsHook_fn(nitransforminterface, (uint32_t) fid, true, false); });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                return RE::BSEventNotifyControl::kContinue;
+            }
+
+    };
+    class TransformFixCell : public RE::BSTEventSink<RE::TESCellAttachDetachEvent> {
+            RE::BSEventNotifyControl ProcessEvent(const RE::TESCellAttachDetachEvent* a_event,
+                                                  RE::BSTEventSource<RE::TESCellAttachDetachEvent>* a_eventSource) {
+                if (a_event) {
+                    if (a_event->reference) {
+                        if (auto actor = a_event->reference->As<RE::Actor>()) {
+                            if (RE::PlayerCharacter::GetSingleton()) {
+                                RE::FormID fid = actor->formID;
+                                if (nitransforminterface) {
+                                    AddMainTask([fid]() { SetNodeTransformsHook_fn(nitransforminterface, (uint32_t) fid, true, false); });
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return RE::BSEventNotifyControl::kContinue;
+            }
+    };
+    class TransformFixMoved : public RE::BSTEventSink<RE::TESMoveAttachDetachEvent> {
+            RE::BSEventNotifyControl ProcessEvent(const RE::TESMoveAttachDetachEvent* a_event,
+                                                  RE::BSTEventSource<RE::TESMoveAttachDetachEvent>* a_eventSource) {
+                if (a_event) {
+                    if (a_event->movedRef) {
+                        if (auto actor = a_event->movedRef->As<RE::Actor>()) {
+                            if (RE::PlayerCharacter::GetSingleton()) {
+                                RE::FormID fid = actor->formID;
+                                if (nitransforminterface) {
+                                    AddMainTask([fid]() { SetNodeTransformsHook_fn(nitransforminterface, (uint32_t) fid, true, false); });
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return RE::BSEventNotifyControl::kContinue;
+            }
+    };
+    bool setskin_workaround_applied = false;
+    static TransformFix* transform_fix = nullptr;
+    static TransformFixMoved* transform_fix_moved = nullptr;
+    static TransformFixCell* transform_fix_cell = nullptr;
+    static TransformFixLoaded* transform_fix_loaded = nullptr;
+    void GameEventHandler::onDataLoaded() {
         mINI::INIFile file("Data\\skse\\plugins\\OverlayFix.ini");
         mINI::INIStructure ini;
         ini["OverlayFix"]["version"] = "1";
@@ -2410,99 +2498,6 @@ namespace plugin {
             DetourTransactionCommit();
         }
 
-        logger::info("onPostPostLoad()");
-    }
-
-    void GameEventHandler::onInputLoaded() {
-        logger::info("onInputLoaded()");
-    }
-    class TransformFix : public RE::BSTEventSink<RE::TESCellFullyLoadedEvent> {
-            RE::BSEventNotifyControl ProcessEvent(const RE::TESCellFullyLoadedEvent* a_event,
-                                                  RE::BSTEventSource<RE::TESCellFullyLoadedEvent>* a_eventSource) {
-                if (a_event && a_event->cell) {
-                    a_event->cell->ForEachReference([](RE::TESObjectREFR* ref) {
-                        if (auto actor = ref->As<RE::Actor>()) {
-                            if (RE::PlayerCharacter::GetSingleton()) {
-                                RE::FormID fid = actor->formID;
-                                if (nitransforminterface) {
-                                    AddMainTask([fid]() { SetNodeTransformsHook_fn(nitransforminterface, (uint32_t) fid, true, false); });
-                                }
-                            }
-                        }
-                        return RE::BSContainer::ForEachResult::kContinue;
-                    });
-                }
-
-                return RE::BSEventNotifyControl::kContinue;
-            }
-    };
-    class TransformFixLoaded : public RE::BSTEventSink<RE::TESObjectLoadedEvent> {
-            RE::BSEventNotifyControl ProcessEvent(const RE::TESObjectLoadedEvent* a_event,
-                                                  RE::BSTEventSource<RE::TESObjectLoadedEvent>* a_eventSource) {
-                if (a_event) {
-                    if (a_event->loaded == true) {
-                        if (a_event->formID) {
-                            if (auto form = RE::TESForm::LookupByID(a_event->formID)) {
-                                if (auto actor = form->As<RE::Actor>()) {
-                                    if (nitransforminterface) {
-                                        auto fid = a_event->formID;
-
-                                        AddMainTask(
-                                            [fid]() { SetNodeTransformsHook_fn(nitransforminterface, (uint32_t) fid, true, false); });
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                return RE::BSEventNotifyControl::kContinue;
-            }
-
-    };
-    class TransformFixCell : public RE::BSTEventSink<RE::TESCellAttachDetachEvent> {
-            RE::BSEventNotifyControl ProcessEvent(const RE::TESCellAttachDetachEvent* a_event,
-                                                  RE::BSTEventSource<RE::TESCellAttachDetachEvent>* a_eventSource) {
-                if (a_event) {
-                    if (a_event->reference) {
-                        if (auto actor = a_event->reference->As<RE::Actor>()) {
-                            if (RE::PlayerCharacter::GetSingleton()) {
-                                RE::FormID fid = actor->formID;
-                                if (nitransforminterface) {
-                                    AddMainTask([fid]() { SetNodeTransformsHook_fn(nitransforminterface, (uint32_t) fid, true, false); });
-                                }
-                            }
-                        }
-                    }
-                }
-
-                return RE::BSEventNotifyControl::kContinue;
-            }
-    };
-    class TransformFixMoved : public RE::BSTEventSink<RE::TESMoveAttachDetachEvent> {
-            RE::BSEventNotifyControl ProcessEvent(const RE::TESMoveAttachDetachEvent* a_event,
-                                                  RE::BSTEventSource<RE::TESMoveAttachDetachEvent>* a_eventSource) {
-                if (a_event) {
-                    if (a_event->movedRef) {
-                        if (auto actor = a_event->movedRef->As<RE::Actor>()) {
-                            if (RE::PlayerCharacter::GetSingleton()) {
-                                RE::FormID fid = actor->formID;
-                                if (nitransforminterface) {
-                                    AddMainTask([fid]() { SetNodeTransformsHook_fn(nitransforminterface, (uint32_t) fid, true, false); });
-                                }
-                            }
-                        }
-                    }
-                }
-
-                return RE::BSEventNotifyControl::kContinue;
-            }
-    };
-    bool setskin_workaround_applied = false;
-    static TransformFix* transform_fix = nullptr;
-    static TransformFixMoved* transform_fix_moved = nullptr;
-    static TransformFixCell* transform_fix_cell = nullptr;
-    static TransformFixLoaded* transform_fix_loaded = nullptr;
-    void GameEventHandler::onDataLoaded() {
         if (mu_normal_setskin_workaround && setskin_workaround_applied==false) {
             {
                 if (auto VM = RE::BSScript::Internal::VirtualMachine::GetSingleton()) {
