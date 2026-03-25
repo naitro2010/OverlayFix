@@ -684,10 +684,10 @@ namespace plugin {
 
     static bool PARALLEL_MORPH_FIX = true;
     static bool PARALLEL_TRANSFORM_FIX = true;
-    void  attach_func(int wait_count, void* arg1, void* arg2, void* arg3, void* arg4, bool arg6, RE::FormID refrid, RE::FormID arg5ID,
-                       RE::FormID arg7ID, RE::FormID arg8ID, RE::NiPointer<RE::NiAVObject> arg5ptr, RE::NiPointer<RE::NiAVObject> arg7ptr,
-                       RE::NiPointer<RE::NiAVObject> arg8ptr, RE::TESObjectREFR* arg5refr, RE::TESObjectREFR* arg7refr,
-                       RE::TESObjectREFR* arg8refr){
+    void attach_func(int wait_count, void* arg1, void* arg2, void* arg3, void* arg4, bool arg6, RE::FormID refrid, RE::FormID arg5ID,
+                     RE::FormID arg7ID, RE::FormID arg8ID, RE::NiPointer<RE::NiAVObject> arg5ptr, RE::NiPointer<RE::NiAVObject> arg7ptr,
+                     RE::NiPointer<RE::NiAVObject> arg8ptr, RE::TESObjectREFR* arg5refr, RE::TESObjectREFR* arg7refr,
+                     RE::TESObjectREFR* arg8refr) {
         std::thread([=] {
             if (wait_count > 0) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(2000));
@@ -776,9 +776,6 @@ namespace plugin {
             RE::FormID refrid;
             if (!is_loading) {
                 if (PARALLEL_TRANSFORM_FIX) {
-
-
-                    
                     if ((RE::TESObjectREFR*) arg2) {
                         refrid = ((RE::TESObjectREFR*) arg2)->GetFormID();
                         RE::TESObjectREFR* ref = (RE::TESObjectREFR*) arg2;
@@ -824,7 +821,7 @@ namespace plugin {
                             attach_func(0, arg1, arg2, arg3, arg4, arg6, refrid, arg5ID, arg7ID, arg8ID, arg5ptr, arg7ptr, arg8ptr,
                                         arg5refr, arg7refr, arg8refr);
                         }
-                    
+
                     } else if (is_main_thread()) {
                         {
                             std::lock_guard l(shader_property_mutex);
@@ -867,8 +864,8 @@ namespace plugin {
                                         RE::NiPointer arg7ptr((RE::NiAVObject*) arg7);
                                         RE::NiPointer arg8ptr((RE::NiAVObject*) arg8);
 
-                                        attach_func(0, arg1, arg2, arg3, arg4, arg6, refrid, arg5ID, arg7ID, arg8ID, arg5ptr,
-                                                    arg7ptr, arg8ptr, arg5refr, arg7refr, arg8refr);
+                                        attach_func(0, arg1, arg2, arg3, arg4, arg6, refrid, arg5ID, arg7ID, arg8ID, arg5ptr, arg7ptr,
+                                                    arg8ptr, arg5refr, arg7refr, arg8refr);
                                         return;
                                     }
                                 }
@@ -898,7 +895,7 @@ namespace plugin {
             }
         }
     }
-    static std::atomic_int32_t setnodetransformhook_norecursion=0;
+    static std::atomic_int32_t setnodetransformhook_norecursion = 0;
     static void SetNodeTransformsHook_fn(void* arg1, uint32_t formID, uint64_t immediate, bool reset) {
         if (PARALLEL_TRANSFORM_FIX) {
             auto original_recursion = setnodetransformhook_norecursion.fetch_add(1);
@@ -911,7 +908,7 @@ namespace plugin {
             if (auto task_int = SKSE::GetTaskInterface()) {
                 immediate = true;
                 if (!is_main_thread()) {
-                    AddMainTask([arg1 = arg1, arg2 = formID, arg3 = immediate, arg4 = reset] { 
+                    AddMainTask([arg1 = arg1, arg2 = formID, arg3 = immediate, arg4 = reset] {
                         setnodetransformhook_norecursion.fetch_add(1);
                         std::lock_guard l(shader_property_mutex);
                         SetNodeTransformsHook(arg1, arg2, arg3, arg4);
@@ -920,7 +917,7 @@ namespace plugin {
                 } else {
                     setnodetransformhook_norecursion.fetch_add(1);
                     std::lock_guard l(shader_property_mutex);
-                    SetNodeTransformsHook(arg1, formID,immediate,reset);
+                    SetNodeTransformsHook(arg1, formID, immediate, reset);
                     setnodetransformhook_norecursion.fetch_sub(1);
                 }
             }
@@ -940,7 +937,13 @@ namespace plugin {
                     AddMainTask([arg1 = arg1, formid = formid, arg3 = firstperson, gender = gender, node_name = new_node_string] {
                         if (auto arg2 = RE::TESForm::LookupByID<RE::TESObjectREFR>(formid)) {
                             std::lock_guard l(shader_property_mutex);
-                            UpdateNodeTransformsHook(arg1, arg2, arg3, gender, &node_name);
+                            if (auto arg2_actor = arg2->As<RE::Actor>()) {
+                                auto original_position = arg2_actor->GetPosition();
+                                UpdateNodeTransformsHook(arg1, arg2, arg3, gender, &node_name);
+                                arg2_actor->SetPosition(original_position,true);
+                            } else {
+                                UpdateNodeTransformsHook(arg1, arg2, arg3, gender, &node_name);
+                            }
                             if (node_name.s == std::string("NPC")) {
                                 if (auto actor = arg2->As<RE::Actor>()) {
                                     if ((actor->formFlags & RE::TESForm::RecordFlags::kDisabled) == 0) {
@@ -1303,7 +1306,6 @@ namespace plugin {
         LoadMainMenuOrig(arg1, arg2, arg3, arg4);
     }
     void GameEventHandler::onPostPostLoad() {
-        
         logger::info("onPostPostLoad()");
     }
 
@@ -1374,7 +1376,6 @@ namespace plugin {
                 }
                 return RE::BSEventNotifyControl::kContinue;
             }
-
     };
     class TransformFixCell : public RE::BSTEventSink<RE::TESCellAttachDetachEvent> {
             RE::BSEventNotifyControl ProcessEvent(const RE::TESCellAttachDetachEvent* a_event,
@@ -2522,7 +2523,7 @@ namespace plugin {
             DetourTransactionCommit();
         }
 
-        if (mu_normal_setskin_workaround && setskin_workaround_applied==false) {
+        if (mu_normal_setskin_workaround && setskin_workaround_applied == false) {
             {
                 if (auto VM = RE::BSScript::Internal::VirtualMachine::GetSingleton()) {
                     RE::BSTSmartPointer<RE::BSScript::ObjectTypeInfo> classInfoPtr = nullptr;
@@ -2582,18 +2583,18 @@ namespace plugin {
             DetourAttach(&(PVOID&) Set3DOrig, &Set3DHook);
             DetourTransactionCommit();
         }*/
-        
-        if (transform_fix_moved == nullptr && transform_fix_cell==nullptr && PARALLEL_TRANSFORM_FIX) {
+
+        if (transform_fix_moved == nullptr && transform_fix_cell == nullptr && PARALLEL_TRANSFORM_FIX) {
             /*
             transform_fix = new TransformFix();
             RE::ScriptEventSourceHolder::GetSingleton()->AddEventSink<RE::TESCellFullyLoadedEvent>(transform_fix);
             */
             transform_fix_moved = new TransformFixMoved();
             RE::ScriptEventSourceHolder::GetSingleton()->AddEventSink<RE::TESMoveAttachDetachEvent>(transform_fix_moved);
-        
+
             transform_fix_cell = new TransformFixCell();
             RE::ScriptEventSourceHolder::GetSingleton()->AddEventSink<RE::TESCellAttachDetachEvent>(transform_fix_cell);
-         /*
+            /*
             transform_fix_loaded = new TransformFixLoaded();
             RE::ScriptEventSourceHolder::GetSingleton()->AddEventSink<RE::TESObjectLoadedEvent>(transform_fix_loaded);
             */
