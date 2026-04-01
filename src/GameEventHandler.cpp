@@ -940,7 +940,7 @@ namespace plugin {
                             if (auto arg2_actor = arg2->As<RE::Actor>()) {
                                 auto original_position = arg2_actor->GetPosition();
                                 UpdateNodeTransformsHook(arg1, arg2, arg3, gender, &node_name);
-                                arg2_actor->SetPosition(original_position,true);
+                                arg2_actor->SetPosition(original_position, true);
                             } else {
                                 UpdateNodeTransformsHook(arg1, arg2, arg3, gender, &node_name);
                             }
@@ -1421,6 +1421,25 @@ namespace plugin {
     static TransformFixMoved* transform_fix_moved = nullptr;
     static TransformFixCell* transform_fix_cell = nullptr;
     static TransformFixLoaded* transform_fix_loaded = nullptr;
+    auto PapyrusFuncCall = (uint64_t (*)(void*, void*, void*, bool)) nullptr;
+    uint64_t PapyrusCallLogHook(void* arg1, void* arg2, void* arg3, bool arg4) {
+        if (arg3) {
+            auto tasklet = (RE::BSTSmartPointer<RE::BSScript::Internal::CodeTasklet>*) arg3;
+            RE::BSScript::Internal::CodeTasklet::CallType type;
+            RE::BSTSmartPointer<RE::BSScript::ObjectTypeInfo> info;
+            RE::BSFixedString function;
+            RE::BSScript::Variable variable;
+            RE::BSScrapArray<RE::BSScript::Variable> variables;
+            if (tasklet && tasklet->get()) {
+                tasklet->get()->GetFunctionCallInfo(type, info, function, variable, variables);
+                if (info && info->name == RE::BSFixedString("NiOverride") && tasklet->get()->vm) {
+                    tasklet->get()->vm->TraceStack(std::format("{}.{}", info->name.c_str(), function.c_str()).c_str(),
+                                                   tasklet->get()->stack->stackID);
+                }
+            }
+        }
+        return PapyrusFuncCall(arg1, arg2, arg3, arg4);
+    }
     void GameEventHandler::onDataLoaded() {
         mINI::INIFile file("Data\\skse\\plugins\\OverlayFix.ini");
         mINI::INIStructure ini;
@@ -1438,6 +1457,7 @@ namespace plugin {
         ini["OverlayFix"]["taskdelaymilliseconds"] = "4";
         ini["OverlayFix"]["ragdollfix"] = "false";
         ini["OverlayFix"]["mu_normal_setskin_workaround"] = "false";
+        ini["OverlayFix"]["skee_script_log"] = "false";
         spdlog::set_level(spdlog::level::info);
         file.read(ini);
         if (!ini["OverlayFix"].has("version")) {
@@ -1455,6 +1475,7 @@ namespace plugin {
             ini["OverlayFix"]["taskdelaymilliseconds"] = "4";
             ini["OverlayFix"]["ragdollfix"] = "false";
             ini["OverlayFix"]["mu_normal_setskin_workaround"] = "false";
+            ini["OverlayFix"]["skee_script_log"] = "false";
         }
         if (atoi(ini["OverlayFix"]["taskdelaycount"].c_str()) > 0) {
             delay_count = atoi(ini["OverlayFix"]["taskdelaycount"].c_str());
@@ -1463,6 +1484,13 @@ namespace plugin {
             millisecond_delay = atoi(ini["OverlayFix"]["taskdelaymilliseconds"].c_str());
         }
         file.generate(ini);
+        if (ini["OverlayFix"]["skee_script_log"] == "true") {
+            PapyrusFuncCall = (uint64_t (*)(void*, void*, void*, bool)) REL::RelocationID(98130, 104853, 98130).address();
+            DetourTransactionBegin();
+            DetourUpdateThread(GetCurrentThread());
+            DetourAttach(&(PVOID&) PapyrusFuncCall, &PapyrusCallLogHook);
+            DetourTransactionCommit();
+        }
         if (ini["OverlayFix"]["mu_normal_setskin_workaround"] == "true") {
             mu_normal_setskin_workaround = true;
         }
