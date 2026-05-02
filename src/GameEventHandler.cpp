@@ -293,10 +293,12 @@ namespace plugin {
             if (geo != nullptr) {
                 auto geodata = geo->GetGeometryRuntimeData();
                 if (geodata.properties[1].get() != nullptr && geodata.properties[1].get()->GetType() == RE::NiShadeProperty::Type::kShade) {
-                    auto shader_prop = (RE::BSLightingShaderProperty*) (geodata.properties[1].get());
-                    if (shader_prop != nullptr) {
-                        shader_prop->SetupGeometry(geo);
-                        shader_prop->FinishSetupGeometry(geo);
+                    if (geodata.properties[1]->GetRTTI()->IsKindOf((RE::NiRTTI*) RE::BSLightingShaderProperty::RTTI.address())) {
+                        auto shader_prop = (RE::BSLightingShaderProperty*) (geodata.properties[1].get());
+                        if (shader_prop != nullptr) {
+                            shader_prop->FinishSetupGeometry(geo);
+                            
+                        }
                     }
                 }
                 geo = geo;
@@ -327,10 +329,12 @@ namespace plugin {
             if (geo != nullptr) {
                 auto geodata = geo->GetGeometryRuntimeData();
                 if (geodata.properties[1].get() != nullptr && geodata.properties[1].get()->GetType() == RE::NiShadeProperty::Type::kShade) {
-                    auto shader_prop = (RE::BSLightingShaderProperty*) (geodata.properties[1].get());
-                    if (shader_prop != nullptr) {
-                        shader_prop->SetupGeometry(geo);
-                        shader_prop->FinishSetupGeometry(geo);
+                    if (geodata.properties[1]->GetRTTI()->IsKindOf((RE::NiRTTI*) RE::BSLightingShaderProperty::RTTI.address())) {
+                        auto shader_prop = (RE::BSLightingShaderProperty*) (geodata.properties[1].get());
+                        if (shader_prop != nullptr) {
+                            shader_prop->FinishSetupGeometry(geo);
+                            
+                        }
                     }
                 }
                 geo = geo;
