@@ -687,7 +687,7 @@ namespace plugin {
     }
 
     static bool PARALLEL_MORPH_FIX = true;
-    static bool PARALLEL_TRANSFORM_FIX = true;
+    static bool PARALLEL_TRANSFORM_FIX = false;
     void attach_func(int wait_count, void* arg1, void* arg2, void* arg3, void* arg4, bool arg6, RE::FormID refrid, RE::FormID arg5ID,
                      RE::FormID arg7ID, RE::FormID arg8ID, RE::NiPointer<RE::NiAVObject> arg5ptr, RE::NiPointer<RE::NiAVObject> arg7ptr,
                      RE::NiPointer<RE::NiAVObject> arg8ptr, RE::TESObjectREFR* arg5refr, RE::TESObjectREFR* arg7refr,
