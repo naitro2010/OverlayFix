@@ -439,17 +439,32 @@ namespace plugin {
     }
 
     void GameEventHandler::onPostLoad() {
-
+        uint16_t skee64_version[4];
+        if (auto VersionSize = GetFileVersionInfoSizeA("skee64.dll", NULL)) {
+            uint8_t* VersionData = (uint8_t*) malloc(VersionSize);
+            GetFileVersionInfoA("skee64.dll", 0x0, VersionSize, VersionData);
+            VS_FIXEDFILEINFO* fileInfo;
+            unsigned int length = 0x0;
+            if (VerQueryValueA(VersionData, "\\", (LPVOID*) & fileInfo, &length)) {
+                skee64_version[0] = HIWORD(fileInfo->dwFileVersionMS);
+                skee64_version[1] = LOWORD(fileInfo->dwFileVersionMS);
+                skee64_version[2] = HIWORD(fileInfo->dwFileVersionLS);
+                skee64_version[3] = LOWORD(fileInfo->dwFileVersionLS);
+            }
+            free(VersionData);
+        }
         if (HMODULE handle = GetModuleHandleA("skee64.dll")) {
             MODULEINFO skee64_info;
             GetModuleInformation(GetCurrentProcess(), handle, &skee64_info, sizeof(skee64_info));
-            if (((skee64_info.SizeOfImage >= 0x1e5669 + 3) &&
-                 (memcmp("BODYTRI", (void*) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1d9558), 7) == 0)) &&
-                (memcmp("GOG", (void*) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1e5669), 3) == 0)) {
-                uint32_t NoseTypeOffset = 0x1ffa510;
-                REL::safe_write((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x29a9, &NoseTypeOffset, 4);
-                uint64_t NoseTypeAddr = REL::Offset(0x1ffa510).address();
-                REL::safe_write((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x2580d0, &NoseTypeAddr, 8);
+            if (skee64_version[0] == 0 && skee64_version[1] == 4 && skee64_version[2] == 20 && skee64_version[3] == 0) {
+                if (((skee64_info.SizeOfImage >= 0x1e5669 + 3) &&
+                     (memcmp("BODYTRI", (void*) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1d9558), 7) == 0)) &&
+                    (memcmp("GOG", (void*) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1e5669), 3) == 0)) {
+                    uint32_t NoseTypeOffset = 0x1ffa510;
+                    REL::safe_write((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x29a9, &NoseTypeOffset, 4);
+                    uint64_t NoseTypeAddr = REL::Offset(0x1ffa510).address();
+                    REL::safe_write((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x2580d0, &NoseTypeAddr, 8);
+                }
             }
         }
         logger::info("onPostLoad()");
@@ -1545,6 +1560,20 @@ namespace plugin {
         if (ini["OverlayFix"]["ragdollfix"] == "true") {
             do_ragdoll_fix = true;
         }
+        uint16_t skee64_version[4];
+        if (auto VersionSize = GetFileVersionInfoSizeA("skee64.dll", NULL)) {
+            uint8_t* VersionData = (uint8_t*)malloc(VersionSize);
+            GetFileVersionInfoA("skee64.dll", 0x0,VersionSize, VersionData);
+            VS_FIXEDFILEINFO* fileInfo;
+            unsigned int length = 0x0;
+            if (VerQueryValueA(VersionData, "\\", (LPVOID*) &fileInfo, &length)) {
+                skee64_version[0] = HIWORD(fileInfo->dwFileVersionMS);
+                skee64_version[1] = LOWORD(fileInfo->dwFileVersionMS);
+                skee64_version[2] = HIWORD(fileInfo->dwFileVersionLS);
+                skee64_version[3] = LOWORD(fileInfo->dwFileVersionLS);
+            }
+            free(VersionData);
+        }
         if (HMODULE handle = GetModuleHandleA("skee64.dll")) {
             MODULEINFO skee64_info;
             GetModuleInformation(GetCurrentProcess(), handle, &skee64_info, sizeof(skee64_info));
@@ -1678,7 +1707,8 @@ namespace plugin {
                         logger::info("SKEE64 1170 skipping SKEE co-save loading to fix corrupted save.");
                     }
                     logger::info("SKEE64 patched");
-                } else if (((skee64_info.SizeOfImage >= 0x1e54e9 + 4) &&
+                } else if ((skee64_version[0] == 0 && skee64_version[1] == 4 && skee64_version[2] == 20 && skee64_version[3] == 0) &&
+                           ((skee64_info.SizeOfImage >= 0x1e54e9 + 4) &&
                             (memcmp("BODYTRI", (void*) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1d9558), 7) == 0)) &&
                            (memcmp("SKSE", (void*) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1e54e9), 4) == 0)) {
                     logger::info("Found SKSE64 0.4.20.0 for 1.6.1170");
@@ -1789,7 +1819,7 @@ namespace plugin {
                         logger::info("SKEE64 0.4.20.0 skipping SKEE co-save loading to fix corrupted save.");
                     }
                     logger::info("SKEE64 0.4.20.0 patched");
-                } else if (((skee64_info.SizeOfImage >= 0x1e5669 + 3) &&
+                } else if ((skee64_version[0] == 0 && skee64_version[1] == 4 && skee64_version[2] == 20 && skee64_version[3] == 0) && ((skee64_info.SizeOfImage >= 0x1e5669 + 3) &&
                             (memcmp("BODYTRI", (void*) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1d9558), 7) == 0)) &&
                            (memcmp("GOG", (void*) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1e5669), 3) == 0)) {
                     logger::info("Found SKSE64 0.4.20.0 GOG for 1.6.1179");
