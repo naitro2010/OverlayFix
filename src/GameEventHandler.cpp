@@ -351,7 +351,6 @@ namespace plugin {
                 if (is_main_or_task_thread()) {
                     if (a_event && a_event->reference && a_event->reference->Is3DLoaded()) {
                         auto handle = a_event->reference->GetHandle();
-                        AddMainTask([handle] {
                             if (auto reference = handle.get()) {
                                 if (!reference->Is3DLoaded()) {
                                     return;
@@ -425,7 +424,7 @@ namespace plugin {
                                     }
                                 }
                             }
-                        });
+                        
                     }
 
                 } else {
@@ -445,7 +444,7 @@ namespace plugin {
             GetFileVersionInfoA("skee64.dll", 0x0, VersionSize, VersionData);
             VS_FIXEDFILEINFO* fileInfo;
             unsigned int length = 0x0;
-            if (VerQueryValueA(VersionData, "\\", (LPVOID*) & fileInfo, &length)) {
+            if (VerQueryValueA(VersionData, "\\", (LPVOID*) &fileInfo, &length)) {
                 skee64_version[0] = HIWORD(fileInfo->dwFileVersionMS);
                 skee64_version[1] = LOWORD(fileInfo->dwFileVersionMS);
                 skee64_version[2] = HIWORD(fileInfo->dwFileVersionLS);
@@ -1562,8 +1561,8 @@ namespace plugin {
         }
         uint16_t skee64_version[4];
         if (auto VersionSize = GetFileVersionInfoSizeA("skee64.dll", NULL)) {
-            uint8_t* VersionData = (uint8_t*)malloc(VersionSize);
-            GetFileVersionInfoA("skee64.dll", 0x0,VersionSize, VersionData);
+            uint8_t* VersionData = (uint8_t*) malloc(VersionSize);
+            GetFileVersionInfoA("skee64.dll", 0x0, VersionSize, VersionData);
             VS_FIXEDFILEINFO* fileInfo;
             unsigned int length = 0x0;
             if (VerQueryValueA(VersionData, "\\", (LPVOID*) &fileInfo, &length)) {
@@ -1819,7 +1818,8 @@ namespace plugin {
                         logger::info("SKEE64 0.4.20.0 skipping SKEE co-save loading to fix corrupted save.");
                     }
                     logger::info("SKEE64 0.4.20.0 patched");
-                } else if ((skee64_version[0] == 0 && skee64_version[1] == 4 && skee64_version[2] == 20 && skee64_version[3] == 0) && ((skee64_info.SizeOfImage >= 0x1e5669 + 3) &&
+                } else if ((skee64_version[0] == 0 && skee64_version[1] == 4 && skee64_version[2] == 20 && skee64_version[3] == 0) &&
+                           ((skee64_info.SizeOfImage >= 0x1e5669 + 3) &&
                             (memcmp("BODYTRI", (void*) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1d9558), 7) == 0)) &&
                            (memcmp("GOG", (void*) ((uintptr_t) skee64_info.lpBaseOfDll + (uintptr_t) 0x1e5669), 3) == 0)) {
                     logger::info("Found SKSE64 0.4.20.0 GOG for 1.6.1179");
