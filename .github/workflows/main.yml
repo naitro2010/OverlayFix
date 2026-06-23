@@ -13,7 +13,7 @@ env:
   PROJECT_LONG_NAME: SKEE64 Overlay Fix for Skyrim
 jobs:
   build-skse:
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
