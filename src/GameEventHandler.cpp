@@ -353,7 +353,7 @@ namespace plugin {
                         auto handle = a_event->reference->GetHandle();
                             if (auto reference = handle.get()) {
                                 if (!reference->Is3DLoaded()) {
-                                    return;
+                                    return RE::BSEventNotifyControl::kContinue;
                                 }
                                 std::map<RE::NiAVObject*, uint32_t> object_to_overlay_index_map;
                                 std::map<RE::NiNode*, std::map<uint32_t, RE::NiAVObject*>> reverse_map;
