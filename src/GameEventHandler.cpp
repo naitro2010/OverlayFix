@@ -24,6 +24,7 @@
 static bool do_hide_unused_overlays = false;
 static bool do_reverse = false;
 static bool print_flags = true;
+static bool crafting_crash_fix = true;
 static bool overlay_culling_fix = true;
 static bool IS_LOADING_GAME = false;
 static bool mu_normal_setskin_workaround = false;
@@ -351,80 +352,78 @@ namespace plugin {
                 if (is_main_or_task_thread()) {
                     if (a_event && a_event->reference && a_event->reference->Is3DLoaded()) {
                         auto handle = a_event->reference->GetHandle();
-                            if (auto reference = handle.get()) {
-                                if (!reference->Is3DLoaded()) {
-                                    return RE::BSEventNotifyControl::kContinue;
+                        if (auto reference = handle.get()) {
+                            if (!reference->Is3DLoaded()) {
+                                return RE::BSEventNotifyControl::kContinue;
+                            }
+                            std::map<RE::NiAVObject*, uint32_t> object_to_overlay_index_map;
+                            std::map<RE::NiNode*, std::map<uint32_t, RE::NiAVObject*>> reverse_map;
+                            auto reverse_map_ptr = &reverse_map;
+                            auto oto_map_ptr = &object_to_overlay_index_map;
+                            auto callback = [=](RE::NiPointer<RE::NiNode> parent, RE::NiPointer<RE::NiAVObject> obj, uint32_t index) {
+                                if (!reverse_map_ptr->contains(parent.get())) {
+                                    std::map<uint32_t, RE::NiAVObject*> obj_map;
+                                    reverse_map_ptr->insert_or_assign(parent.get(), obj_map);
                                 }
-                                std::map<RE::NiAVObject*, uint32_t> object_to_overlay_index_map;
-                                std::map<RE::NiNode*, std::map<uint32_t, RE::NiAVObject*>> reverse_map;
-                                auto reverse_map_ptr = &reverse_map;
-                                auto oto_map_ptr = &object_to_overlay_index_map;
-                                auto callback = [=](RE::NiPointer<RE::NiNode> parent, RE::NiPointer<RE::NiAVObject> obj, uint32_t index) {
-                                    if (!reverse_map_ptr->contains(parent.get())) {
-                                        std::map<uint32_t, RE::NiAVObject*> obj_map;
-                                        reverse_map_ptr->insert_or_assign(parent.get(), obj_map);
-                                    }
-                                    if (parent.get() && obj.get()) {
-                                        auto& m = reverse_map_ptr->at(parent.get());
-                                        m.insert_or_assign(obj->parentIndex, obj.get());
-                                        oto_map_ptr->insert_or_assign(obj.get(), index);
-                                    }
-                                };
-                                std::function<void(RE::NiPointer<RE::NiNode>, RE::NiPointer<RE::NiAVObject>, uint32_t)> callback_fn =
-                                    callback;
-                                WalkOverlays(reference->GetCurrent3D(), false, callback_fn);
+                                if (parent.get() && obj.get()) {
+                                    auto& m = reverse_map_ptr->at(parent.get());
+                                    m.insert_or_assign(obj->parentIndex, obj.get());
+                                    oto_map_ptr->insert_or_assign(obj.get(), index);
+                                }
+                            };
+                            std::function<void(RE::NiPointer<RE::NiNode>, RE::NiPointer<RE::NiAVObject>, uint32_t)> callback_fn = callback;
+                            WalkOverlays(reference->GetCurrent3D(), false, callback_fn);
 
-                                if (reference->IsHandleValid()) {
-                                    if (reference->_refCount > 1 && reference->Is3DLoaded()) {
-                                        for (auto& node_pair: reverse_map) {
-                                            std::map<RE::NiAVObject*, uint32_t> original_indices;
-                                            std::map<RE::NiAVObject*, uint32_t> new_indices;
-                                            for (auto& obj_pair: node_pair.second) {
-                                                original_indices.insert_or_assign(obj_pair.second, obj_pair.second->parentIndex);
-                                            }
-                                            std::vector<RE::NiAVObject*> keys;
-                                            for (auto p: original_indices) {
-                                                keys.push_back(p.first);
-                                            }
-                                            int new_index = 0;
-                                            if (keys.size() >= 2) {
-                                                if (original_indices[keys[0]] < original_indices[keys[1]]) {
-                                                    for (int i = (int) original_indices.size() - 1; i >= 0; i -= 1) {
-                                                        new_indices.insert_or_assign(keys[new_index], original_indices[keys[i]]);
-                                                        new_index += 1;
-                                                    }
+                            if (reference->IsHandleValid()) {
+                                if (reference->_refCount > 1 && reference->Is3DLoaded()) {
+                                    for (auto& node_pair: reverse_map) {
+                                        std::map<RE::NiAVObject*, uint32_t> original_indices;
+                                        std::map<RE::NiAVObject*, uint32_t> new_indices;
+                                        for (auto& obj_pair: node_pair.second) {
+                                            original_indices.insert_or_assign(obj_pair.second, obj_pair.second->parentIndex);
+                                        }
+                                        std::vector<RE::NiAVObject*> keys;
+                                        for (auto p: original_indices) {
+                                            keys.push_back(p.first);
+                                        }
+                                        int new_index = 0;
+                                        if (keys.size() >= 2) {
+                                            if (original_indices[keys[0]] < original_indices[keys[1]]) {
+                                                for (int i = (int) original_indices.size() - 1; i >= 0; i -= 1) {
+                                                    new_indices.insert_or_assign(keys[new_index], original_indices[keys[i]]);
+                                                    new_index += 1;
+                                                }
 
-                                                    std::map<uint32_t, RE::NiPointer<RE::NiAVObject>> child_objects;
-                                                    for (auto index_pair: original_indices) {
-                                                        RE::NiPointer<RE::NiAVObject> temporary;
+                                                std::map<uint32_t, RE::NiPointer<RE::NiAVObject>> child_objects;
+                                                for (auto index_pair: original_indices) {
+                                                    RE::NiPointer<RE::NiAVObject> temporary;
 
-                                                        node_pair.first->DetachChildAt(index_pair.second, temporary);
-                                                        child_objects.insert_or_assign(new_indices[index_pair.first], temporary);
-                                                    }
-                                                    for (auto& obj_pair: child_objects) {
-                                                        node_pair.first->InsertChildAt(obj_pair.first, obj_pair.second.get());
-                                                    }
+                                                    node_pair.first->DetachChildAt(index_pair.second, temporary);
+                                                    child_objects.insert_or_assign(new_indices[index_pair.first], temporary);
+                                                }
+                                                for (auto& obj_pair: child_objects) {
+                                                    node_pair.first->InsertChildAt(obj_pair.first, obj_pair.second.get());
                                                 }
                                             }
                                         }
-                                        if (qupdatenormalmap) {
-                                            if (auto actor = reference->As<RE::Actor>()) {
-                                                std::lock_guard l(qupdatenormalmap_lock);
-                                                if (qupdatenormalmap_recursion == 0) {
-                                                    logger::info("calling QUpdateNormalMap");
-                                                    qupdatenormalmap_recursion = 1;
-                                                    qupdatenormalmap(nullptr, actor, 0xffffffff);
+                                    }
+                                    if (qupdatenormalmap) {
+                                        if (auto actor = reference->As<RE::Actor>()) {
+                                            std::lock_guard l(qupdatenormalmap_lock);
+                                            if (qupdatenormalmap_recursion == 0) {
+                                                logger::info("calling QUpdateNormalMap");
+                                                qupdatenormalmap_recursion = 1;
+                                                qupdatenormalmap(nullptr, actor, 0xffffffff);
 
-                                                    qupdatenormalmap_recursion = 0;
-                                                }
+                                                qupdatenormalmap_recursion = 0;
                                             }
                                         }
-                                    } else {
-                                        logger::error("not reversing overlays because 3D is not loaded or ref count too low");
                                     }
+                                } else {
+                                    logger::error("not reversing overlays because 3D is not loaded or ref count too low");
                                 }
                             }
-                        
+                        }
                     }
 
                 } else {
@@ -1469,6 +1468,19 @@ namespace plugin {
         }
         return PapyrusFuncCall(arg1, arg2, arg3, arg4);
     }
+    auto orig_GetCurrentLocation = (RE::BGSLocation * (*) (RE::TESObjectREFR * r)) nullptr;
+
+    RE::BGSLocation* GetCurrentLocationHook(RE::TESObjectREFR* r)
+    {
+        if (r == nullptr) {
+        
+            return RE::PlayerCharacter::GetSingleton()->GetCurrentLocation();
+
+            
+        } else {
+            return orig_GetCurrentLocation(r);
+        }
+    }
     void GameEventHandler::onDataLoaded() {
         mINI::INIFile file("Data\\skse\\plugins\\OverlayFix.ini");
         mINI::INIStructure ini;
@@ -1487,6 +1499,7 @@ namespace plugin {
         ini["OverlayFix"]["ragdollfix"] = "false";
         ini["OverlayFix"]["mu_normal_setskin_workaround"] = "false";
         ini["OverlayFix"]["skee_script_log"] = "false";
+        ini["OverlayFix"]["crafting_crash_fix"] = "true";
         spdlog::set_level(spdlog::level::info);
         file.read(ini);
         if (!ini["OverlayFix"].has("version")) {
@@ -1505,6 +1518,24 @@ namespace plugin {
             ini["OverlayFix"]["ragdollfix"] = "false";
             ini["OverlayFix"]["mu_normal_setskin_workaround"] = "false";
             ini["OverlayFix"]["skee_script_log"] = "false";
+            ini["OverlayFix"]["crafting_crash_fix"] = "true";
+        }
+        if (ini["OverlayFix"]["crafting_crash_fix"] == "false") {
+            crafting_crash_fix = false;
+        }
+        {
+
+            auto version = REL::Module::get().version();
+            if (version == REL::Version(1, 6, 1170, 0)) {
+                if (crafting_crash_fix == true) {
+                    logger::info("Applying crafting_crash_fix");
+                    auto& trampoline = SKSE::GetTrampoline();
+                    SKSE::AllocTrampoline(14);
+                    orig_GetCurrentLocation = (RE::BGSLocation * (*) (RE::TESObjectREFR * r)) trampoline.write_call<5>(
+                        REL::RelocationID(0, 51369).address() + 0x214, GetCurrentLocationHook);
+                    logger::info("Applied crafting_crash_fix");
+                }
+            }
         }
         if (atoi(ini["OverlayFix"]["taskdelaycount"].c_str()) > 0) {
             delay_count = atoi(ini["OverlayFix"]["taskdelaycount"].c_str());
