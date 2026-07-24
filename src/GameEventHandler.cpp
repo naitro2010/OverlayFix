@@ -1464,6 +1464,10 @@ namespace plugin {
                     tasklet->get()->vm->TraceStack(std::format("{}.{}", info->name.c_str(), function.c_str()).c_str(),
                                                    tasklet->get()->stack->stackID);
                 }
+                if (info && info->name == RE::BSFixedString("Debug") && tasklet->get()->vm && function == RE::BSFixedString("SendAnimationEvent")) {
+                    tasklet->get()->vm->TraceStack(std::format("{}.{}", info->name.c_str(), function.c_str()).c_str(),
+                                                   tasklet->get()->stack->stackID);
+                }
             }
         }
         return PapyrusFuncCall(arg1, arg2, arg3, arg4);
