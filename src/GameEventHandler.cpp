@@ -167,6 +167,49 @@ static RE::TESForm* LookupFormSKEEVR(RE::FormID id) {
     return nullptr;
 }
 #endif
+class ActorActionDebug : public RE::BSTEventSink<SKSE::ActionEvent> {
+        RE::BSEventNotifyControl ProcessEvent(const SKSE::ActionEvent* a_event,
+                                              RE::BSTEventSource<SKSE::ActionEvent>* a_eventSource) {
+            
+            if (a_event) {
+                uint32_t fid = 0;
+                if (a_event->actor) {
+                    fid = a_event->actor->formID;
+                }
+                uint32_t sourcefid = 0;
+                if (a_event->sourceForm) {
+                    sourcefid = a_event->sourceForm->formID;
+                }
+
+                logger::info("ActorAction logging starts here {:08X} {:08X} {} {}", fid, sourcefid, a_event->slot.underlying(),
+                             a_event->type.underlying());
+                void* frames[256];
+                unsigned short frame_count;
+                SYMBOL_INFO_PACKAGE symbol;
+                symbol.si.MaxNameLen = MAX_SYM_NAME;
+                symbol.si.SizeOfStruct = sizeof(SYMBOL_INFO);
+                SymInitialize(GetCurrentProcess(), NULL, TRUE);
+                frame_count = CaptureStackBackTrace(0, 256, frames, NULL);
+                for (int i = 0; i < frame_count; i++) {
+                    MEMORY_BASIC_INFORMATION frame_info;
+                    if (VirtualQuery(frames[i], &frame_info, sizeof(frame_info)) == 0) {
+                        continue;
+                    }
+                    char mod_name[2801] = "";
+                    GetModuleFileNameA((HMODULE) frame_info.AllocationBase, mod_name, 2800);
+                    logger::info("{} {:016X} {:016X} {} {:016X}\n", i, (DWORD64) frames[i],
+                                 (DWORD64) frames[i] - (DWORD64) frame_info.AllocationBase, mod_name,
+                                 (DWORD64) frame_info.AllocationBase);
+                }
+
+                logger::info("ActorAction logging ends here");
+                return RE::BSEventNotifyControl::kContinue;
+            }
+            return RE::BSEventNotifyControl::kContinue;
+            
+        }
+};
+static ActorActionDebug* actiondebug = nullptr;
 /*
 static auto CoSaveStoreLogAddr = (void (*)(void*,void*,unsigned int)) 0x0;
 static void CoSaveStoreLog(void* cosaveinterface, void * obj, unsigned int stackID) {
@@ -2907,7 +2950,10 @@ namespace plugin {
             DetourAttach(&(PVOID&) Set3DOrig, &Set3DHook);
             DetourTransactionCommit();
         }*/
-
+        if (actiondebug == nullptr) {
+            actiondebug = new ActorActionDebug();
+            SKSE::GetActionEventSource()->AddEventSink(actiondebug);
+        }
         if (transform_fix_moved == nullptr && transform_fix_cell == nullptr && PARALLEL_TRANSFORM_FIX) {
             /*
             transform_fix = new TransformFix();
